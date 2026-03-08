@@ -47,17 +47,34 @@
 
                                 <!-- Process Master Sub-Tabs -->
                                 <div v-if="t.id === 'process_master'">
-                                    <v-tabs v-model="processTab" bg-color="grey-lighten-4" color="blue-darken-3"
-                                        show-arrows density="compact">
+                                    <v-tabs v-model="processTab" bg-color="grey-lighten-4" color="blue-darken-3" show-arrows density="compact">
                                         <v-tab value="all">すべて</v-tab>
-                                        <v-tab v-for="variety in uniqueVarieties" :key="variety" :value="variety"
-                                            :color="cropColorMap[variety] || 'blue-darken-3'">
-                                            <v-icon start :color="cropColorMap[variety] || 'grey'">mdi-circle</v-icon>{{
-                                            variety }}
+                                        <v-tab v-for="variety in uniqueVarieties" :key="variety" :value="variety" :color="cropColorMap[variety] || 'blue-darken-3'">
+                                            <v-icon start :color="cropColorMap[variety] || 'grey'">mdi-circle</v-icon>{{ variety }}
                                         </v-tab>
                                     </v-tabs>
+                                    <v-data-table :headers="t.headers"
+                                        :items="processTab === 'all' ? (tableData[t.id] || []) : (tableData[t.id] || []).filter(i => i.variety_name === processTab)"
+                                        :items-per-page="-1" :loading="loading">
+                                        <template v-slot:item.actions="{ item }">
+                                            <v-icon size="small" class="me-2" color="blue" @click="openCrudDialog(t.id, item)">mdi-pencil</v-icon>
+                                            <v-icon size="small" color="red" @click="deleteRecord(t.id, item)">mdi-delete</v-icon>
+                                        </template>
+                                        <template v-slot:item.variety_name="{ item }">
+                                            <v-icon size="small" class="mr-1" :color="cropColorMap[item.variety_name] || 'grey'">mdi-circle</v-icon>
+                                            {{ item.variety_name }}
+                                        </template>
+                                    </v-data-table>
+                                </div>
 
-                                                                        <v-data-table :headers="t.headers"
+                                <!-- Fields Master Sub-Tabs -->
+                                <div v-else-if="t.id === 'fields'">
+                                    <div class="mb-3">
+                                        <v-tabs v-model="fieldsTab" color="green-darken-1">
+                                            <v-tab v-for="folder in uniqueFieldFolders" :key="folder" :value="folder">{{ folder }}</v-tab>
+                                        </v-tabs>
+                                    </div>
+                                    <v-data-table :headers="t.headers"
                                         :items="(tableData[t.id] || []).filter(i => i.folder_name === fieldsTab)"
                                         :items-per-page="-1" :loading="loading">
                                         <template v-slot:item.area_total="{ item }">
