@@ -88,54 +88,23 @@
                                             {{ item.area_total != null ? Math.round(item.area_total) : '' }}
                                         </template>
                                         <template v-slot:item.ridge_width="{ item }">
-                                            <v-text-field v-if="inlineEditingId === 'field_rw_' + item.name"
-                                                v-model="item.ridge_width" type="number" variant="underlined"
-                                                hide-details density="compact"
-                                                @change="saveInlineFieldDesignAction(item)"
-                                                @blur="inlineEditingId = null" style="min-width: 60px"
-                                                class="pa-0 ma-0 text-caption" autofocus></v-text-field>
-                                            <span v-else @click="inlineEditingId = 'field_rw_' + item.name"
-                                                class="cursor-pointer px-2 py-1 rounded hover-bg-grey text-body-2 d-block"
-                                                style="min-height:24px;">{{ item.ridge_width || '---' }}</span>
+                                            <span>{{ item.ridge_width || '---' }}</span>
                                         </template>
                                         <template v-slot:item.ridge_distance="{ item }">
-                                            <v-text-field v-if="inlineEditingId === 'field_rd_' + item.name"
-                                                v-model="item.ridge_distance" type="number" variant="underlined"
-                                                hide-details density="compact"
-                                                @change="saveInlineFieldDesignAction(item)"
-                                                @blur="inlineEditingId = null" style="min-width: 60px"
-                                                class="pa-0 ma-0 text-caption" autofocus></v-text-field>
-                                            <span v-else @click="inlineEditingId = 'field_rd_' + item.name"
-                                                class="cursor-pointer px-2 py-1 rounded hover-bg-grey text-body-2 d-block"
-                                                style="min-height:24px;">{{ item.ridge_distance || '---' }}</span>
+                                            <span>{{ item.ridge_distance || '---' }}</span>
                                         </template>
                                         <template v-slot:item.number_of_rows="{ item }">
-                                            <v-text-field v-if="inlineEditingId === 'field_row_' + item.name"
-                                                v-model="item.number_of_rows" type="number" variant="underlined"
-                                                hide-details density="compact"
-                                                @change="saveInlineFieldDesignAction(item)"
-                                                @blur="inlineEditingId = null" style="min-width: 50px"
-                                                class="pa-0 ma-0 text-caption" autofocus></v-text-field>
-                                            <span v-else @click="inlineEditingId = 'field_row_' + item.name"
-                                                class="cursor-pointer px-2 py-1 rounded hover-bg-grey text-body-2 d-block"
-                                                style="min-height:24px;">{{ item.number_of_rows || '---' }}</span>
+                                            <span>{{ item.number_of_rows || '---' }}</span>
                                         </template>
                                         <template v-slot:item.plant_distance="{ item }">
-                                            <v-text-field v-if="inlineEditingId === 'field_pd_' + item.name"
-                                                v-model="item.plant_distance" type="number" variant="underlined"
-                                                hide-details density="compact"
-                                                @change="saveInlineFieldDesignAction(item)"
-                                                @blur="inlineEditingId = null" style="min-width: 60px"
-                                                class="pa-0 ma-0 text-caption" autofocus></v-text-field>
-                                            <span v-else @click="inlineEditingId = 'field_pd_' + item.name"
-                                                class="cursor-pointer px-2 py-1 rounded hover-bg-grey text-body-2 d-block"
-                                                style="min-height:24px;">{{ item.plant_distance || '---' }}</span>
+                                            <span>{{ item.plant_distance || '---' }}</span>
                                         </template>
                                         <template v-slot:item.max_plantable="{ item }">
-                                            <strong>{{ item.max_plantable != null ? Math.round(item.max_plantable) : ''
-                                                }}</strong>
+                                            <strong>{{ item.max_plantable != null ? Math.round(item.max_plantable) : '' }}</strong>
                                         </template>
-                                        <!-- No operations for Fields master as per UI design -->
+                                        <template v-slot:item.actions="{ item }">
+                                            <v-btn icon="mdi-pencil" size="small" variant="text" color="blue" @click="openCrudDialog(t.id, item)" title="編集"></v-btn>
+                                        </template>
                                     </v-data-table>
                                 </div>
 
@@ -676,7 +645,7 @@
 
                                     <!-- Standard Text Input Fields -->
                                     <v-text-field v-else v-model="crudDialog.item[field.key]" :label="field.title"
-                                        :disabled="field.key === 'id' && crudDialog.isEdit && crudDialog.table !== 'varieties_master' && crudDialog.table !== 'season_plans'"
+                                        :disabled="(field.key === 'id' && crudDialog.isEdit && crudDialog.table !== 'varieties_master' && crudDialog.table !== 'season_plans') || (crudDialog.table === 'fields' && field.key === 'name')"
                                         variant="outlined" density="comfortable"></v-text-field>
                                 </v-col>
                             </v-row>
@@ -767,7 +736,8 @@
                             { title: '条数', key: 'number_of_rows' },
                             { title: '株間(cm)', key: 'plant_distance' },
                             { title: '定植可能（最大）', key: 'max_plantable' },
-                            { title: '備考', key: 'notes' }
+                            { title: '備考', key: 'notes' },
+                            { title: '操作', key: 'actions', sortable: false, width: '100px' }
                         ]
                     },
                     {
@@ -1070,6 +1040,14 @@
                             { title: '備考', key: 'notes' },
                             { title: '操作', key: 'actions' }
                         ];
+                    } else if (tableId === 'fields') {
+                        crudDialog.value.fields = [
+                            { title: '圃場・施設名', key: 'name' },
+                            { title: '畝幅(cm)', key: 'ridge_width' },
+                            { title: '畝間(cm)', key: 'ridge_distance' },
+                            { title: '条数', key: 'number_of_rows' },
+                            { title: '株間(cm)', key: 'plant_distance' }
+                        ];
                     } else {
                         crudDialog.value.fields = config.headers;
                     }
@@ -1082,6 +1060,12 @@
                 const saveRecord = async () => {
                     isSaving.value = true;
                     try {
+                        if (crudDialog.value.table === 'fields') {
+                            await saveInlineFieldDesignAction(crudDialog.value.item);
+                            crudDialog.value.show = false;
+                            loadData();
+                            return;
+                        }
                         const method = crudDialog.value.isEdit ? 'PUT' : 'POST';
                         const res = await fetch(`/api/admin/data/${crudDialog.value.table}`, {
                             method: method,
