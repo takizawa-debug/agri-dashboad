@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>マスタデータ管理 (Admin Dashboard)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap"
+        rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/vuetify@3.4.0/dist/vuetify.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <v-app>
+            <v-app-bar color="blue-darken-3">
+                <v-app-bar-title>農業工程 マスタデータ管理</v-app-bar-title>
+                <v-spacer></v-spacer>
+                <v-btn icon @click="loadData"><v-icon>mdi-refresh</v-icon></v-btn>
+            </v-app-bar>
+
+            <v-main class="bg-grey-lighten-4">
+                <v-container>
+                    <v-tabs v-model="tab" bg-color="white" color="blue-darken-3">
+                        <v-tab value="work">作業マスタ</v-tab>
+                        <v-tab value="material">資材マスタ</v-tab>
+                        <v-tab value="equip">農機具マスタ</v-tab>
+                    </v-tabs>
+
+                    <v-window v-model="tab" class="mt-4">
+                        <!-- 作業マスタ -->
+                        <v-window-item value="work">
+                            <v-card>
+                                <v-card-title class="d-flex align-center">
+                                    作業マスタ
+                                    <v-spacer></v-spacer>
+                                    <v-btn color="blue" @click="openDialog('work')">CSVインポート</v-btn>
+                                </v-card-title>
+                                <v-data-table :headers="workHeaders" :items="workMaster"
+                                    :loading="loading"></v-data-table>
+                            </v-card>
+                        </v-window-item>
+
+                        <!-- 資材マスタ -->
+                        <v-window-item value="material">
+                            <v-card>
+                                <v-card-title class="d-flex align-center">
+                                    資材マスタ
+                                    <v-spacer></v-spacer>
+                                    <v-btn color="blue" @click="openDialog('material')">CSVインポート</v-btn>
+                                </v-card-title>
+                                <v-data-table :headers="materialHeaders" :items="materialMaster"
+                                    :loading="loading"></v-data-table>
+                            </v-card>
+                        </v-window-item>
+
+                        <!-- 農機具マスタ -->
+                        <v-window-item value="equip">
+                            <v-card>
+                                <v-card-title class="d-flex align-center">
+                                    農機具マスタ
+                                    <v-spacer></v-spacer>
+                                    <v-btn color="blue" @click="openDialog('equip')">CSVインポート</v-btn>
+                                </v-card-title>
+                                <v-data-table :headers="equipHeaders" :items="equipMaster"
+                                    :loading="loading"></v-data-table>
+                            </v-card>
+                        </v-window-item>
+                    </v-window>
+                </v-container>
+            </v-main>
+
+            <!-- CSVインポートダイアログ -->
+            <v-dialog v-model="importDialog" max-width="500">
+                <v-card>
+                    <v-card-title class="text-h6 pb-2">CSVデータのインポート ({{ importType }})</v-card-title>
+                    <v-card-text>
+                        <p class="mb-4 text-caption text-grey-darken-1">既存のデータは一度クリアされ、アップロードしたレコードで上書きされます。</p>
+                        <v-file-input v-model="csvFile" accept=".csv" label="CSVファイルを選択"
+                            prepend-icon="mdi-file-delimited" variant="outlined" density="compact"></v-file-input>
+                    </v-card-text>
+                    <v-card-actions>
+                        <v-spacer></v-spacer>
+                        <v-btn variant="text" @click="importDialog = false">キャンセル</v-btn>
+                        <v-btn color="blue-darken-3" :loading="isImporting" :disabled="!csvFile"
+                            @click="executeImport">インポート実行</v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
+
+            <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000">
+                {{ snackbar.text }}
+            </v-snackbar>
+        </v-app>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vuetify@3.4.0/dist/vuetify.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script>
+        const { createApp, ref, onMounted } = Vue;
+        const vuetify = Vuetify.createVuetify();
+
+        createApp({
+            setup() {
+                const tab = ref('work');
+                const loading = ref(false);
+                const workMaster = ref([]);
+                const materialMaster = ref([]);
+                const equipMaster = ref([]);
+
+                const snackbar = ref({ show: false, color: '', text: '' });
+
+                const workHeaders = [
+                    { title: 'ID', key: 'id' },
+                    { title: '大区分', key: 'major_category' },
+                    { title: '中区分', key: 'mid_category' },
+                    { title: '小区分', key: 'minor_category' }
+                ];
+                const materialHeaders = [
+                    { title: 'ID', key: 'id' },
+                    { title: '大区分', key: 'major_category' },
+                    { title: '中区分', key: 'mid_category' },
+                    { title: '商品名', key: 'product_name' },
+                    { title: '解説', key: 'description' }
+                ];
+                const equipHeaders = [
+                    { title: 'ID', key: 'id' },
+                    { title: '区分', key: 'category' },
+                    { title: '名称', key: 'name' }
+                ];
+
+                const loadData = async () => {
+                    loading.value = true;
+                    try {
+                        const res = await fetch('/api/admin/master_data');
+                        const data = await res.json();
+                        workMaster.value = data.work || [];
+                        materialMaster.value = data.material || [];
+                        equipMaster.value = data.equip || [];
+                    } catch (e) {
+                        snackbar.value = { show: true, color: 'error', text: 'データ取得に失敗' };
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                const importDialog = ref(false);
+                const importType = ref('');
+                const csvFile = ref(null);
+                const isImporting = ref(false);
+
+                const openDialog = (type) => {
+                    importType.value = type;
+                    csvFile.value = null; // Vuetify 3 uses an array of files, or single file if not multiple
+                    importDialog.value = true;
+                };
+
+                const executeImport = () => {
+                    if (!csvFile.value) return;
+
+                    const file = Array.isArray(csvFile.value) ? csvFile.value[0] : csvFile.value;
+                    if (!file) return;
+
+                    isImporting.value = true;
+                    Papa.parse(file, {
+                        header: true,
+                        skipEmptyLines: true,
+                        complete: async function (results) {
+                            try {
+                                const payload = { type: importType.value, data: results.data };
+                                const res = await fetch('/api/admin/import', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify(payload)
+                                });
+                                const responseData = await res.json();
+
+                                if (responseData.success) {
+                                    snackbar.value = { show: true, color: 'success', text: responseData.message };
+                                    importDialog.value = false;
+                                    loadData(); // refresh table
+                                } else {
+                                    snackbar.value = { show: true, color: 'error', text: responseData.error || 'エラー発生' };
+                                }
+                            } catch (e) {
+                                snackbar.value = { show: true, color: 'error', text: '通信に失敗しました' };
+                            } finally {
+                                isImporting.value = false;
+                            }
+                        },
+                        error: function (err) {
+                            isImporting.value = false;
+                            snackbar.value = { show: true, color: 'error', text: 'CSV読み込みエラー' };
+                        }
+                    });
+                };
+
+                onMounted(() => {
+                    loadData();
+                });
+
+                return {
+                    tab, loading, snackbar, loadData, openDialog,
+                    workMaster, materialMaster, equipMaster,
+                    workHeaders, materialHeaders, equipHeaders,
+                    importDialog, importType, csvFile, isImporting, executeImport
+                }
+            }
+        }).use(vuetify).mount('#app');
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,2009 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <base target="_top">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
+    <title>農作業ダッシュボード</title>
+
+    <!-- Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap"
+        rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
+
+    <!-- Vuetify CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/vuetify@3.4.0/dist/vuetify.min.css" rel="stylesheet">
+
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+        }
+
+        .v-application {
+            font-family: 'Noto Sans JP', sans-serif !important;
+        }
+
+        .gantt-container {
+            overflow-x: auto;
+            overflow-y: hidden;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        .dark-mode .gantt-container {
+            background: #1E1E1E;
+        }
+
+        /* Unified Gantt Layout */
+        .gantt-header {
+            display: flex;
+            position: sticky;
+            top: 0;
+            z-index: 40;
+            background: #f9fafb;
+            border-bottom: 1px solid #e5e7eb;
+            min-width: max-content;
+        }
+
+        .dark-mode .gantt-header {
+            background: #111827;
+            border-bottom: 1px solid #374151;
+        }
+
+        .gantt-label-fixed {
+            position: sticky;
+            left: 0;
+            width: 250px;
+            min-width: 250px;
+            background: #f9fafb;
+            z-index: 50;
+            padding: 12px;
+            border-right: 1px solid #e5e7eb;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+        }
+
+        .dark-mode .gantt-label-fixed {
+            background: #111827;
+            border-right: 1px solid #374151;
+        }
+
+        .gantt-days {
+            display: flex;
+            flex-grow: 1;
+        }
+
+        .gantt-day-header {
+            width: 60px;
+            min-width: 60px;
+            padding: 8px 4px;
+            text-align: center;
+            border-right: 1px solid #f3f4f6;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .dark-mode .gantt-day-header {
+            border-right: 1px solid #374151;
+        }
+
+        .gantt-row-container {
+            display: flex;
+            position: relative;
+            border-bottom: 1px solid #e5e7eb;
+            background: white;
+            min-width: max-content;
+        }
+
+        .dark-mode .gantt-row-container {
+            border-bottom: 1px solid #374151;
+            background: #1E1E1E;
+        }
+
+        .gantt-row-container .gantt-label-fixed {
+            background: white;
+            z-index: 30;
+            align-items: flex-start;
+            flex-direction: column;
+            justify-content: center;
+            position: sticky;
+            left: 0;
+            border-right: 1px solid #e5e7eb;
+        }
+
+        .dark-mode .gantt-row-container .gantt-label-fixed {
+            background: #1E1E1E;
+            border-right: 1px solid #374151;
+        }
+
+        .gantt-day-bg {
+            width: 60px;
+            min-width: 60px;
+            border-right: 1px solid #f3f4f6;
+            height: 100%;
+        }
+
+        .dark-mode .gantt-day-bg {
+            border-right: 1px solid #374151;
+        }
+
+        .gantt-task-overlay {
+            position: absolute;
+            height: 32px;
+            z-index: 5;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border-radius: 16px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        }
+
+        .gantt-task-overlay:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            z-index: 15;
+        }
+
+        .task-bar-content {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            border-radius: 16px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .task-tail {
+            flex: 3;
+            opacity: 0.4;
+        }
+
+        .task-core {
+            flex: 1;
+            opacity: 1;
+        }
+
+        .task-text-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: bold;
+            text-shadow: 0px 1px 3px rgba(0, 0, 0, 0.8);
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        /* Colors for different task types based on majorCat */
+        .task-blue {
+            background: #3b82f6;
+        }
+
+        /* 播種・育苗 */
+        .task-brown {
+            background: #a16207;
+        }
+
+        /* 準備・整地 */
+        .task-green {
+            background: #10b981;
+        }
+
+        /* 定植 */
+        .task-teal {
+            background: #14b8a6;
+        }
+
+        /* 管理・施肥 */
+        .task-red {
+            background: #ef4444;
+        }
+
+        /* 防除 */
+        .task-orange {
+            background: #f59e0b;
+        }
+
+        /* 収穫 */
+        .task-grey {
+            background: #64748b;
+        }
+
+        /* 片付け */
+        .task-default {
+            background: #8b5cf6;
+        }
+
+        /* その他 */
+
+        /* Specific Day Colors for Headers and BG */
+        .bg-saturday {
+            background-color: #e0f2fe !important;
+        }
+
+        .dark-mode .bg-saturday {
+            background-color: #0369a1 !important;
+        }
+
+        .text-blue {
+            color: #0284c7 !important;
+        }
+
+        .dark-mode .text-blue {
+            color: #7dd3fc !important;
+        }
+
+        .bg-holiday {
+            background-color: #ffe4e6 !important;
+        }
+
+        .dark-mode .bg-holiday {
+            background-color: #be123c !important;
+        }
+
+        .text-red {
+            color: #e11d48 !important;
+        }
+
+        .dark-mode .text-red {
+            color: #fda4af !important;
+        }
+
+        .task-continuous-pattern {
+            background-image: repeating-linear-gradient(45deg,
+                    rgba(255, 255, 255, 0.2),
+                    rgba(255, 255, 255, 0.2) 10px,
+                    transparent 10px,
+                    transparent 20px);
+            border: 2px dashed rgba(255, 255, 255, 0.8);
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2) inset;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <v-app :theme="isDark ? 'dark' : 'light'">
+
+            <!-- App Bar -->
+            <v-app-bar color="green-darken-3" elevation="2">
+                <v-app-bar-nav-icon @click="drawer = !drawer"></v-app-bar-nav-icon>
+                <v-app-bar-title class="font-weight-bold">
+                    <v-icon class="mr-2">mdi-sprout</v-icon>
+                    第五期 農業工程ダッシュボード
+                </v-app-bar-title>
+                <v-spacer></v-spacer>
+                <v-btn icon @click="loadData" :loading="loading">
+                    <v-icon>mdi-refresh</v-icon>
+                </v-btn>
+                <v-btn icon @click="toggleTheme">
+                    <v-icon>{{ isDark ? 'mdi-weather-night' : 'mdi-weather-sunny' }}</v-icon>
+                </v-btn>
+            </v-app-bar>
+
+            <!-- Navigation Drawer -->
+            <v-navigation-drawer v-model="drawer" temporary>
+                <v-list nav>
+                    <v-list-item prepend-icon="mdi-check-circle" title="本日のタスク" value="tasks"
+                        @click="currentView = 'tasks'" :active="currentView === 'tasks'"></v-list-item>
+                    <v-list-item prepend-icon="mdi-chart-gantt" title="全体スケジュール" value="gantt"
+                        @click="currentView = 'gantt'" :active="currentView === 'gantt'"></v-list-item>
+                    <v-list-item prepend-icon="mdi-map" title="地図" value="map" @click="currentView = 'map'"
+                        :active="currentView === 'map'"></v-list-item>
+                </v-list>
+            </v-navigation-drawer>
+
+            <v-main class="bg-grey-lighten-4">
+                <v-container fluid>
+
+                    <!-- Loading Overlay -->
+                    <v-overlay :model-value="loading" class="align-center justify-center">
+                        <v-progress-circular color="green-darken-2" indeterminate size="64"></v-progress-circular>
+                    </v-overlay>
+
+                    <!-- ====== VIEW: TASKS ====== -->
+                    <v-slide-y-transition hide-on-leave>
+                        <div v-if="currentView === 'tasks' && !loading">
+                            <div class="d-flex align-center justify-space-between mb-4">
+                                <h2 class="text-h5 font-weight-bold text-green-darken-3">
+                                    <v-icon color="green-darken-3" class="mr-2">mdi-calendar-today</v-icon>
+                                    本日のタスク ({{ todayDateStr }})
+                                </h2>
+                            </div>
+
+                            <v-alert v-if="error" type="error" variant="tonal" class="mb-4">{{ error }}</v-alert>
+
+                            <div v-if="todayTasks.length === 0" class="text-center py-10">
+                                <v-icon size="64" color="grey-lighten-1">mdi-emoticon-happy-outline</v-icon>
+                                <div class="text-h6 text-grey mt-4">本日の予定タスクはありません</div>
+                            </div>
+
+                            <v-row>
+                                <v-col cols="12" md="6" lg="4" v-for="task in todayTasks" :key="task.taskId">
+                                    <v-card elevation="2" border round="lg" class="d-flex flex-column h-100">
+                                        <v-card-item>
+                                            <template v-slot:subtitle>
+                                                <v-chip size="small" color="blue-darken-1"
+                                                    class="font-weight-bold mb-1">
+                                                    {{ task.field || '圃場未定' }}
+                                                </v-chip>
+                                                <div class="text-caption text-grey-darken-1">{{ task.cropName }}</div>
+                                            </template>
+                                            <v-card-title class="font-weight-bold text-h6">
+                                                {{ task.minorCat }}
+                                            </v-card-title>
+                                        </v-card-item>
+
+                                        <v-card-text class="flex-grow-1">
+                                            <div class="d-flex align-center mb-2">
+                                                <v-icon size="small" color="grey" class="mr-2">mdi-tag</v-icon>
+                                                <span class="text-body-2">{{ task.majorCat }} > {{ task.midCat }}</span>
+                                            </div>
+                                            <div class="d-flex align-center mb-2" v-if="task.materialName">
+                                                <v-icon size="small" color="amber-darken-2"
+                                                    class="mr-2">mdi-flask</v-icon>
+                                                <span class="text-body-2">資材: <strong>{{ task.materialName }}</strong>
+                                                    ({{ task.materialQty }}{{ task.materialUnit }})</span>
+                                            </div>
+                                            <div class="d-flex align-center mb-2" v-if="task.equipName">
+                                                <v-icon size="small" color="blue-grey" class="mr-2">mdi-tractor</v-icon>
+                                                <span class="text-body-2">農機具: {{ task.equipName }}</span>
+                                            </div>
+                                            <div class="d-flex align-center" v-if="task.detail">
+                                                <v-icon size="small" color="grey"
+                                                    class="mr-2">mdi-information-outline</v-icon>
+                                                <span class="text-body-2 text-grey-darken-2">{{ task.detail }}</span>
+                                            </div>
+                                        </v-card-text>
+
+                                        <v-divider></v-divider>
+
+                                        <v-card-actions class="pa-4 bg-grey-lighten-5">
+                                            <div class="text-caption font-weight-bold text-grey-darken-1">
+                                                予定工数: {{ task.workHours }}h
+                                            </div>
+                                            <v-spacer></v-spacer>
+                                            <v-btn color="green-darken-2" variant="flat" prepend-icon="mdi-check"
+                                                @click="openReportDialog(task)">
+                                                完了報告
+                                            </v-btn>
+                                        </v-card-actions>
+                                    </v-card>
+                                </v-col>
+                            </v-row>
+                        </div>
+                    </v-slide-y-transition>
+
+                    <!-- ====== VIEW: GANTT ====== -->
+                    <v-slide-y-transition hide-on-leave>
+                        <div v-if="currentView === 'gantt' && !loading">
+                            <h2 class="text-h5 font-weight-bold text-green-darken-3 mb-4">
+                                <v-icon color="green-darken-3" class="mr-2">mdi-chart-gantt</v-icon>
+                                作付け別スケジュール
+                            </h2>
+
+                            <!-- Filter Section -->
+                            <v-card elevation="0" class="mb-4 pa-4 bg-transparent border">
+                                <div class="text-subtitle-2 text-grey-darken-1 font-weight-bold mb-2">品目による絞り込み表示</div>
+                                <div class="d-flex flex-wrap align-center">
+                                    <v-checkbox v-for="crop in availableCrops" :key="crop" v-model="selectedCrops"
+                                        :label="crop" :value="crop" color="green-darken-3" hide-details
+                                        density="compact" class="mr-4 mb-2"></v-checkbox>
+                                </div>
+                            </v-card>
+
+                            <!-- Aggregated Legend/Summary Section -->
+                            <v-card elevation="1" class="mb-4 pa-3 bg-grey-lighten-4 border rounded-lg">
+                                <div class="text-caption font-weight-bold text-grey-darken-2 mb-3 d-flex align-center">
+                                    <v-icon size="small" class="mr-1">mdi-sigma</v-icon>
+                                    表示中作付の合計（各記号の凡例）
+                                </div>
+
+                                <div class="d-flex flex-wrap" style="gap: 20px;">
+                                    <div v-for="(totals, cropName) in filteredTotals" :key="cropName"
+                                        class="pl-2 border-s-sm py-1"
+                                        :style="`border-color: ${getCropColor(cropName)} !important; min-width: 280px;`">
+                                        <div class="font-weight-bold text-body-2 mb-1"
+                                            :class="`text-${getCropColor(cropName)}`">{{ cropName }}</div>
+                                        <div class="d-flex flex-wrap align-center text-grey-darken-3"
+                                            style="gap: 12px; font-size: 0.75rem;">
+                                            <div class="d-flex align-center">
+                                                <v-icon size="small"
+                                                    class="mr-1 text-grey-darken-2">mdi-chart-areaspline</v-icon>
+                                                <span>{{ Math.round(totals.area).toLocaleString() }} ㎡</span>
+                                            </div>
+                                            <div class="d-flex align-center">
+                                                <v-icon size="small"
+                                                    class="mr-1 text-green-darken-3">mdi-sprout</v-icon>
+                                                <span>{{ totals.plantingCount.toLocaleString() }} 本</span>
+                                            </div>
+                                            <div class="d-flex align-center">
+                                                <v-icon size="small"
+                                                    class="mr-1 text-purple-darken-3">mdi-tape-measure</v-icon>
+                                                <span>{{ Math.round(totals.mulchLength).toLocaleString() }} m</span>
+                                            </div>
+                                            <div class="d-flex align-center">
+                                                <v-icon size="small" class="mr-1 text-brown-darken-2">mdi-seed</v-icon>
+                                                <span>{{ totals.sowingCount.toLocaleString() }} 粒</span>
+                                            </div>
+                                            <div class="d-flex align-center">
+                                                <v-icon size="small"
+                                                    class="mr-1 text-blue-grey-darken-2">mdi-grid</v-icon>
+                                                <span>{{ totals.trayCount.toLocaleString() }} 枚</span>
+                                            </div>
+                                            <div class="d-flex align-center">
+                                                <v-icon size="small"
+                                                    class="mr-1 text-orange-darken-3">mdi-basket-fill</v-icon>
+                                                <span>{{ totals.harvestYield.toLocaleString() }} {{ totals.harvestUnit
+                                                    || 'kg' }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </v-card>
+
+                            <v-card elevation="2" class="pa-4" rounded="lg">
+                                <div class="gantt-container" v-if="timelineDates.length > 0">
+                                    <!-- Header Row (Dates) -->
+                                    <div class="gantt-header">
+                                        <div class="gantt-label-fixed">
+                                            <v-icon class="mr-2" color="grey">mdi-sprout</v-icon>
+                                            品目 / 圃場
+                                        </div>
+                                        <div class="gantt-days">
+                                            <div v-for="d in timelineDates" :key="d.fullDateStr"
+                                                class="gantt-day-header"
+                                                :class="[getDayClass(d), {'is-today text-green-darken-3': d.fullDateStr === todayStr}]">
+                                                <div class="text-caption font-weight-bold">{{ d.month }}/{{ d.date }}
+                                                </div>
+                                                <div class="text-caption"
+                                                    :class="{'text-grey': d.day !== '土' && d.day !== '日'}"
+                                                    style="font-size: 0.65rem !important;">{{ d.day }}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Data Rows (Crops) -->
+                                    <template v-for="(plan, pIdx) in filteredScheduleData" :key="plan.planId">
+                                        <div class="gantt-row-container"
+                                            :style="{ height: expandedRows[plan.planId] ? (Math.max(getTaskLayout(plan).height, 160) + 'px') : '70px', transition: 'height 0.3s ease' }">
+
+                                            <!-- Row Label (Sticky) -->
+                                            <div class="gantt-label-fixed">
+                                                <div class="d-flex align-center justify-space-between mb-1"
+                                                    style="width: 100%;">
+                                                    <div class="d-flex flex-column justify-center cursor-pointer"
+                                                        :title="plan.cropName" @click.stop="toggleRow(plan.planId)"
+                                                        style="flex: 1; min-width: 0; text-align: left;">
+                                                        <div
+                                                            class="font-weight-bold text-body-2 text-truncate d-flex align-center">
+                                                            <span
+                                                                :class="`text-${getCropColor(plan.cropName)} mr-1`">●</span>
+                                                            {{ formatCropTitle(plan.cropName) }}
+                                                        </div>
+                                                        <div v-if="formatCropSubtitle(plan.cropName)"
+                                                            class="text-caption text-grey text-truncate ml-4"
+                                                            style="font-size: 0.65rem !important; line-height: 1;">
+                                                            {{ formatCropSubtitle(plan.cropName) }}
+                                                        </div>
+                                                    </div>
+                                                    <v-icon size="small" class="ml-2 text-grey"
+                                                        @click.stop="toggleRow(plan.planId)" style="cursor: pointer;">{{
+                                                        expandedRows[plan.planId] ? 'mdi-chevron-up' :
+                                                        'mdi-chevron-down' }}</v-icon>
+                                                </div>
+
+                                                <!-- Field Links -->
+                                                <div class="text-caption text-blue-darken-2 d-flex align-center mt-1 flex-wrap"
+                                                    style="line-height: 1.2;">
+                                                    <v-icon size="x-small" class="mr-1">mdi-map-marker-outline</v-icon>
+                                                    <template v-for="(f, fIdx) in plan.fields" :key="fIdx">
+                                                        <span style="cursor: pointer; text-decoration: underline;"
+                                                            @click.stop="openFieldModal(f)">{{ f || '未定' }}</span>
+                                                        <span v-if="fIdx < plan.fields.length - 1"
+                                                            class="mx-1 text-grey"
+                                                            style="text-decoration: none;">,</span>
+                                                    </template>
+                                                </div>
+
+                                                <v-expand-transition>
+                                                    <div v-show="expandedRows[plan.planId]">
+                                                        <!-- Metrics: Area and Planting Count -->
+                                                        <div class="text-caption text-grey-darken-2 mt-2 d-flex align-center flex-wrap font-weight-medium"
+                                                            style="font-size: 0.7rem !important; gap: 4px;">
+                                                            <v-icon size="x-small"
+                                                                class="mr-1">mdi-chart-areaspline</v-icon>
+                                                            <span class="mr-2">{{
+                                                                Math.round(plan.totalArea).toLocaleString() }}
+                                                                ㎡</span>
+
+                                                            <v-icon size="x-small"
+                                                                class="mr-1 text-green-darken-3">mdi-sprout</v-icon>
+                                                            <span class="text-green-darken-3 mr-2">{{
+                                                                plan.totalPlantingCount.toLocaleString() }} 本</span>
+
+                                                            <v-icon size="x-small"
+                                                                class="text-purple-darken-3">mdi-tape-measure</v-icon>
+                                                            <span class="text-purple-darken-3 mr-1"
+                                                                title="マルチ必要量(畝長+2m/本) ">{{
+                                                                Math.round(plan.totalMulchLength).toLocaleString() }}
+                                                                m</span>
+                                                        </div>
+
+                                                        <!-- Sowing and Yield Metrics -->
+                                                        <div class="text-caption text-grey-darken-2 mt-1 d-flex align-center flex-wrap font-weight-medium"
+                                                            style="font-size: 0.7rem !important; gap: 4px;">
+                                                            <v-icon size="x-small" class="mr-1">mdi-seed</v-icon>
+                                                            <span class="mr-2 text-brown-darken-2">{{
+                                                                plan.totalSowingCount.toLocaleString() }} 粒</span>
+
+                                                            <v-icon size="x-small"
+                                                                class="text-blue-grey-darken-2">mdi-grid</v-icon>
+                                                            <span class="text-blue-grey-darken-2 mr-2"
+                                                                title="128穴トレイ換算">{{
+                                                                Math.ceil(plan.totalSowingCount / 128).toLocaleString()
+                                                                }}
+                                                                枚</span>
+
+                                                            <v-icon size="x-small"
+                                                                class="text-orange-darken-3">mdi-basket-fill</v-icon>
+                                                            <span class="text-orange-darken-3">{{
+                                                                plan.totalHarvestYield.toLocaleString() }} {{
+                                                                plan.harvestUnit
+                                                                || 'kg' }}</span>
+                                                        </div>
+
+                                                        <!-- Dates: Base and Harvest -->
+                                                        <div class="text-caption text-grey-darken-1 mt-1 d-flex align-center font-weight-medium"
+                                                            style="font-size: 0.7rem !important;">
+                                                            <v-icon size="x-small"
+                                                                class="mr-1">mdi-calendar-range</v-icon>
+                                                            {{ plan.baseDate }} ～ {{ plan.harvestDate || '未定' }}
+                                                        </div>
+                                                    </div>
+                                                </v-expand-transition>
+                                            </div>
+
+                                            <!-- Row Timeline Background Columns -->
+                                            <div class="gantt-days">
+                                                <div v-for="d in timelineDates" :key="d.fullDateStr"
+                                                    class="gantt-day-bg" :class="getDayClass(d)">
+                                                </div>
+                                            </div>
+
+                                            <!-- Floating Task Overlays -->
+                                            <div v-for="taskObj in getTaskLayout(plan).layout"
+                                                :key="taskObj.data.taskId + '-' + taskObj.left"
+                                                class="gantt-task-overlay shadow-sm"
+                                                v-show="expandedRows[plan.planId] || taskObj.top < 50"
+                                                :style="{ left: taskObj.left + 'px', top: taskObj.top + 'px', width: taskObj.width + 'px' }"
+                                                @click="showTaskDetails(taskObj.data, plan)">
+                                                <!-- Bar Visuals -->
+                                                <div class="task-bar-content"
+                                                    :class="[getTaskColorClass(taskObj.data), (taskObj.isContinuous && taskObj.mergedCount > 1) ? 'task-continuous-pattern' : '']"
+                                                    :style="taskObj.isContinuous && taskObj.mergedCount > 1 ? 'opacity: 0.95;' : ''">
+                                                    <div class="task-tail"></div>
+                                                    <div class="task-core"></div>
+                                                    <div class="task-tail"></div>
+                                                    <!-- Fully legible overlaid text -->
+                                                    <div class="task-text-overlay d-flex align-center px-2">
+                                                        <span>{{ taskObj.data.minorCat }}</span>
+                                                        <template
+                                                            v-if="taskObj.isContinuous && taskObj.mergedCount > 1">
+                                                            <div class="ml-2 px-1 rounded bg-white text-grey-darken-3 d-flex align-center font-weight-bold shadow-sm"
+                                                                style="font-size: 0.7em; opacity: 0.9; letter-spacing: -0.5px;">
+                                                                <v-icon size="10" class="mr-1">mdi-refresh</v-icon>
+                                                                {{ taskObj.data.intervalDays }}日毎(計{{
+                                                                taskObj.mergedCount }}回)
+                                                            </div>
+                                                            <span class="ml-1" style="font-size: 0.75em;">{{
+                                                                taskObj.data.estimatedHours }}h/回</span>
+                                                        </template>
+                                                        <span v-else class="ml-1" style="font-size: 0.8em;">
+                                                            ({{ taskObj.data.estimatedHours }}h)
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                        </div>
+                                    </template>
+                                </div>
+                                <div v-else class="text-center py-8">
+                                    <v-progress-circular indeterminate color="green"></v-progress-circular>
+                                    <div class="mt-4 text-grey">スケジュールデータを読み込んでいます...</div>
+                                </div>
+                            </v-card>
+                        </div>
+                    </v-slide-y-transition>
+
+                    <!-- ====== VIEW: MAP ====== -->
+                    <v-slide-y-transition hide-on-leave>
+                        <div v-show="currentView === 'map' && !loading">
+                            <h2 class="text-h5 font-weight-bold text-green-darken-3 mb-6 d-flex align-center">
+                                <v-icon color="green-darken-3" class="mr-2">mdi-map</v-icon>
+                                圃場設計マップ
+                            </h2>
+                            <v-card elevation="2" class="pa-0" rounded="lg">
+                                <div id="main-map" style="height: 650px; width: 100%; z-index: 1;"></div>
+                            </v-card>
+                        </div>
+                    </v-slide-y-transition>
+
+                </v-container>
+            </v-main>
+
+            <!-- Task Report Dialog -->
+            <v-dialog v-model="reportDialog" max-width="500px">
+                <v-card rounded="lg">
+                    <v-card-title class="bg-green-darken-2 text-white d-flex align-center">
+                        <v-icon class="mr-2">mdi-clipboard-check</v-icon>
+                        作業完了報告
+                    </v-card-title>
+
+                    <v-card-text class="pt-6">
+                        <div class="text-subtitle-1 font-weight-bold mb-4">{{ selectedTask?.cropName }} - {{
+                            selectedTask?.minorCat }}</div>
+
+                        <v-text-field v-model.number="reportForm.actualHours" label="実績工数 (時間)" type="number"
+                            :hint="`予定工数(自動計算): ${selectedTask?.estimatedHours !== undefined ? selectedTask.estimatedHours : (selectedTask?.baseWorkHours || 0)} h`"
+                            persistent-hint variant="outlined" color="green-darken-2"
+                            prepend-inner-icon="mdi-clock-outline"></v-text-field>
+
+                        <v-text-field v-if="selectedTask?.materialName" v-model.number="reportForm.actualMaterialQty"
+                            :label="`資材使用量 (${selectedTask?.materialUnit})`"
+                            :hint="`予定: ${selectedTask?.materialQty} ${selectedTask?.materialUnit} / ${selectedTask?.materialName}`"
+                            persistent-hint type="number" variant="outlined" color="green-darken-2" class="mt-2"
+                            prepend-inner-icon="mdi-flask"></v-text-field>
+
+                        <v-text-field v-model="reportForm.workerName" label="作業者名" variant="outlined"
+                            color="green-darken-2" class="mt-4" prepend-inner-icon="mdi-account"></v-text-field>
+
+                        <v-textarea v-model="reportForm.memo" label="特記事項・備考" variant="outlined" color="green-darken-2"
+                            rows="3"></v-textarea>
+                    </v-card-text>
+
+                    <v-card-actions class="pa-4 bg-grey-lighten-4">
+                        <v-spacer></v-spacer>
+                        <v-btn color="grey-darken-2" variant="text" @click="reportDialog = false">キャンセル</v-btn>
+                        <v-btn color="green-darken-3" variant="flat" :loading="saving"
+                            @click="submitReport">完了として記録</v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
+
+            <!-- Field Info Dialog -->
+            <v-dialog v-model="fieldDialog" max-width="600px">
+                <v-card rounded="lg" v-if="selectedFieldInfo">
+                    <v-card-title class="bg-blue-darken-2 text-white d-flex align-center">
+                        <v-icon class="mr-2">mdi-map-marker-radius</v-icon>
+                        圃場情報: {{ selectedFieldName }}
+                    </v-card-title>
+                    <v-card-text class="pt-6">
+                        <v-row>
+                            <v-col cols="6" v-if="selectedFieldInfo.folder">
+                                <div class="text-caption text-grey">レイヤー</div>
+                                <div class="text-body-1 font-weight-bold">{{ selectedFieldInfo.folder }}</div>
+                            </v-col>
+                            <v-col cols="6" v-if="selectedFieldInfo.repElev">
+                                <div class="text-caption text-grey">代表標高</div>
+                                <div class="text-body-1 font-weight-bold">{{ selectedFieldInfo.repElev }} m</div>
+                            </v-col>
+                            <v-col cols="6" v-if="selectedFieldInfo.areaTotal">
+                                <div class="text-caption text-grey">面積</div>
+                                <div class="text-body-1 font-weight-bold">{{ selectedFieldInfo.areaTotal.toFixed(1) }} ㎡
+                                </div>
+                            </v-col>
+                            <v-col cols="6" v-if="selectedFieldInfo.perimeter">
+                                <div class="text-caption text-grey">外周</div>
+                                <div class="text-body-1 font-weight-bold">{{ selectedFieldInfo.perimeter.toFixed(1) }} m
+                                </div>
+                            </v-col>
+
+                            <!-- Planting Details Block -->
+                            <v-col cols="12"
+                                v-if="selectedFieldInfo.folder === '耕作地' && selectedFieldInfo.totalPlantCount">
+                                <v-card variant="flat" class="bg-grey-lighten-4 pa-3 rounded-lg border">
+                                    <div class="d-flex align-center justify-space-between mb-2">
+                                        <div class="text-body-2 font-weight-bold text-grey-darken-2">定植本数</div>
+                                        <div class="text-h6 font-weight-bold text-green-darken-3">{{
+                                            selectedFieldInfo.totalPlantCount }} <span class="text-caption">本</span>
+                                        </div>
+                                    </div>
+                                    <v-divider class="mb-2"></v-divider>
+                                    <div class="text-caption text-grey mb-1">ー以下は内訳ー</div>
+                                    <v-row dense>
+                                        <v-col cols="6">
+                                            <div class="text-caption"><b>畝数:</b> {{ selectedFieldInfo.totalRidgeCount }}
+                                                本
+                                            </div>
+                                        </v-col>
+                                        <v-col cols="6">
+                                            <div class="text-caption"><b>畝幅:</b> {{ selectedFieldInfo.ridgeWidth }} cm
+                                            </div>
+                                        </v-col>
+                                        <v-col cols="6">
+                                            <div class="text-caption"><b>畝間幅:</b> {{ selectedFieldInfo.ridgeGap }} cm
+                                            </div>
+                                        </v-col>
+                                        <v-col cols="6">
+                                            <div class="text-caption"><b>条数:</b> {{ selectedFieldInfo.rowCount }} 条
+                                            </div>
+                                        </v-col>
+                                        <v-col cols="6">
+                                            <div class="text-caption"><b>株間:</b> {{ selectedFieldInfo.plantSpacing }} cm
+                                            </div>
+                                        </v-col>
+                                    </v-row>
+                                </v-card>
+                            </v-col>
+
+                            <v-col cols="12" v-if="selectedFieldInfo.notes">
+                                <div class="text-caption text-grey">備考</div>
+                                <div class="text-body-2">{{ selectedFieldInfo.notes }}</div>
+                            </v-col>
+                            <v-col cols="12" v-if="selectedFieldInfo.locationUrl">
+                                <v-btn :href="selectedFieldInfo.locationUrl" target="_blank"
+                                    prepend-icon="mdi-google-maps" variant="outlined" color="blue-darken-2" block>
+                                    Google Mapsで開く
+                                </v-btn>
+                            </v-col>
+                            <!-- Interactive Polygon Map -->
+                            <v-col cols="12" v-if="selectedFieldInfo.polygonCoords" class="mt-2">
+                                <div class="text-caption text-grey font-weight-bold mb-1">農地ピン位置（ポリゴン）</div>
+                                <div id="polygon-map"
+                                    style="height: 350px; border-radius: 8px; border: 1px solid #e0e0e0; position: relative; z-index: 1;">
+                                    <div id="modal-heatmap-legend"
+                                        style="position: absolute; bottom: 20px; right: 20px; background: rgba(255, 255, 255, 0.9); padding: 10px; border-radius: 8px; z-index: 1000; box-shadow: 0 2px 5px rgba(0,0,0,0.2); display: none; font-size: 12px; pointer-events: none;">
+                                        <div class="d-flex align-center">
+                                            <div class="legend-gradient"></div>
+                                            <div class="d-flex flex-column justify-space-between"
+                                                style="height: 100px;">
+                                                <span id="modal-legend-max">0m</span>
+                                                <span>標高差</span>
+                                                <span id="modal-legend-min">0m</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </v-col>
+                        </v-row>
+                    </v-card-text>
+                    <v-card-actions class="pa-4 bg-grey-lighten-4">
+                        <v-spacer></v-spacer>
+                        <v-btn color="grey-darken-2" variant="text" @click="fieldDialog = false">閉じる</v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
+
+            <!-- Snackbar for notifications -->
+            <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
+                {{ snackbar.message }}
+                <template v-slot:actions>
+                    <v-btn variant="text" @click="snackbar.show = false">閉じる</v-btn>
+                </template>
+            </v-snackbar>
+
+        </v-app>
+    </div>
+
+    <!-- Vue & Vuetify Scripts -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vuetify@3.4.0/dist/vuetify.min.js"></script>
+
+    <script>
+        const { createApp, ref, computed, onMounted } = Vue;
+        const { createVuetify } = Vuetify;
+
+        const vuetify = createVuetify();
+
+        const app = createApp({
+            setup() {
+                const drawer = ref(false);
+                const currentView = ref('tasks');
+                const isDark = ref(false);
+                const loading = ref(false);
+                const error = ref('');
+                const scheduleData = ref([]);
+                const selectedCrops = ref([]);
+
+                const availableCrops = computed(() => {
+                    const crops = new Set();
+                    scheduleData.value.forEach(plan => {
+                        if (plan.cropName) {
+                            crops.add(plan.cropName.split('_')[0]);
+                        }
+                    });
+                    return Array.from(crops).sort();
+                });
+
+                // --- Collapsible Rows State ---
+                const expandedRows = ref({}); // { planId: boolean }
+
+                const toggleRow = (planId) => {
+                    expandedRows.value[planId] = !expandedRows.value[planId];
+                };
+
+                const filteredScheduleData = computed(() => {
+                    const filtered = selectedCrops.value.length === 0 ? scheduleData.value : scheduleData.value.filter(plan => {
+                        const crop = plan.cropName.split('_')[0];
+                        return selectedCrops.value.includes(crop);
+                    });
+
+                    const groups = {};
+                    filtered.forEach(plan => {
+                        const key = plan.cropName + '_' + plan.baseDate;
+                        // 計算: 圃場由来のマルチ長
+                        let fieldMulchLen = 0;
+                        if (plan.field && fieldsData.value[plan.field] && fieldsData.value[plan.field].ridges) {
+                            fieldsData.value[plan.field].ridges.forEach(r => {
+                                if (r.length) {
+                                    fieldMulchLen += (r.length + 2); // 前後1mずつ余分に
+                                }
+                            });
+                        }
+
+                        if (!groups[key]) {
+                            groups[key] = {
+                                planId: key,
+                                cropName: plan.cropName,
+                                baseDate: plan.baseDate,
+                                harvestDate: plan.harvestDate,
+                                fields: [plan.field],
+                                totalPlantingCount: plan.plantingCount || 0,
+                                totalSowingCount: plan.sowingCount || 0,
+                                totalHarvestYield: plan.harvestYield || 0,
+                                harvestUnit: plan.harvestUnit || "",
+                                totalArea: fieldsData.value[plan.field]?.areaTotal || 0,
+                                totalMulchLength: fieldMulchLen,
+                                tasks: plan.tasks
+                            };
+                        } else {
+                            if (!groups[key].fields.includes(plan.field)) {
+                                groups[key].fields.push(plan.field);
+                                groups[key].totalArea += (fieldsData.value[plan.field]?.areaTotal || 0);
+                                groups[key].totalMulchLength += fieldMulchLen;
+                            }
+                            groups[key].totalPlantingCount += (plan.plantingCount || 0);
+                            groups[key].totalSowingCount += (plan.sowingCount || 0);
+                            groups[key].totalHarvestYield += (plan.harvestYield || 0);
+                            // Keep first encountered unit if missing later
+                            if (!groups[key].harvestUnit && plan.harvestUnit) {
+                                groups[key].harvestUnit = plan.harvestUnit;
+                            }
+                        }
+                    });
+
+                    // Sort by baseDate
+                    return Object.values(groups).sort((a, b) => new Date(a.baseDate) - new Date(b.baseDate));
+                });
+
+                const filteredTotals = computed(() => {
+                    const totalsByCrop = {};
+
+                    filteredScheduleData.value.forEach(plan => {
+                        const cropBase = plan.cropName.split('_')[0] || plan.cropName;
+
+                        if (!totalsByCrop[cropBase]) {
+                            totalsByCrop[cropBase] = {
+                                area: 0,
+                                plantingCount: 0,
+                                sowingCount: 0,
+                                trayCount: 0,
+                                mulchLength: 0,
+                                harvestYield: 0,
+                                harvestUnit: ''
+                            };
+                        }
+
+                        totalsByCrop[cropBase].area += plan.totalArea;
+                        totalsByCrop[cropBase].plantingCount += plan.totalPlantingCount;
+                        totalsByCrop[cropBase].sowingCount += plan.totalSowingCount;
+                        totalsByCrop[cropBase].mulchLength += plan.totalMulchLength;
+                        totalsByCrop[cropBase].harvestYield += plan.totalHarvestYield;
+                        totalsByCrop[cropBase].trayCount += Math.ceil(plan.totalSowingCount / 128);
+
+                        // Keep first valid unit encountered
+                        if (!totalsByCrop[cropBase].harvestUnit && plan.harvestUnit) {
+                            totalsByCrop[cropBase].harvestUnit = plan.harvestUnit;
+                        }
+                    });
+
+                    return totalsByCrop;
+                });
+
+                // Field Info Data
+                const fieldsData = ref({});
+                const fieldDialog = ref(false);
+                const selectedFieldName = ref('');
+                const selectedFieldInfo = computed(() => {
+                    return fieldsData.value[selectedFieldName.value] || null;
+                });
+
+                // Report Dialog
+                const reportDialog = ref(false);
+                const saving = ref(false);
+                const selectedTask = ref(null);
+                const reportForm = ref({
+                    actualHours: 0,
+                    actualMaterialQty: 0,
+                    workerName: '',
+                    memo: ''
+                });
+
+                // Snackbar
+                const snackbar = ref({
+                    show: false,
+                    color: 'success',
+                    message: ''
+                });
+
+                // Map Data
+                const mapData = ref([]);
+                let mainLeafletMap = null;
+                let modalLeafletMap = null;
+
+                // Icons Helper
+
+                const getCropColor = (cropName) => {
+                    if (!cropName) return 'green';
+                    if (cropName.includes('とうもろこし')) return 'yellow-darken-3';
+                    if (cropName.includes('トマト')) return 'red-darken-2';
+                    if (cropName.includes('ねぎ')) return 'light-green-darken-3';
+                    if (cropName.includes('じゃがいも') || cropName.includes('芋')) return 'brown-lighten-1';
+                    if (cropName.includes('ピーマン') || cropName.includes('パプリカ') || cropName.includes('オクラ')) return 'green-darken-1';
+                    if (cropName.includes('キャベツ') || cropName.includes('白菜') || cropName.includes('レタス') || cropName.includes('ブロッコリー')) return 'green-lighten-2';
+                    if (cropName.includes('にんじん')) return 'orange-darken-2';
+                    if (cropName.includes('米') || cropName.includes('稲') || cropName.includes('麦')) return 'amber-darken-2';
+                    if (cropName.includes('玉ねぎ')) return 'orange-lighten-2';
+                    if (cropName.includes('大根') || cropName.includes('だいこん')) return 'grey-lighten-1';
+                    if (cropName.includes('いちご')) return 'red-accent-3';
+                    return 'green';
+                };
+
+                const formatCropTitle = (fullName) => {
+                    if (!fullName) return '';
+                    return fullName.split('_')[0];
+                };
+
+                const formatCropSubtitle = (fullName) => {
+                    if (!fullName) return '';
+                    const parts = fullName.split('_');
+                    if (parts.length <= 1) return '';
+                    return parts.slice(1).join(' ');
+                };
+
+                // Helpers
+                const todayStr = (() => {
+                    const d = new Date();
+                    const p = (n) => n.toString().padStart(2, '0');
+                    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+                })();
+
+                const todayDateStr = computed(() => {
+                    const d = new Date();
+                    return `${d.getMonth() + 1}月${d.getDate()}日`;
+                });
+
+                const todayTasks = computed(() => {
+                    if (!scheduleData.value) return [];
+                    const tasks = [];
+                    scheduleData.value.forEach(plan => {
+                        plan.tasks.forEach(t => {
+                            // Get tasks scheduled for today or earlier (overdue)
+                            if (t.targetDate <= todayStr) {
+                                tasks.push({
+                                    ...t,
+                                    planId: plan.planId,
+                                    cropName: plan.cropName,
+                                    field: plan.field
+                                });
+                            }
+                        });
+                    });
+                    // Sort tasks by date (oldest/most overdue first)
+                    return tasks.sort((a, b) => a.targetDateObj - b.targetDateObj);
+                });
+
+                // --- Unified Gantt Chart Timeline Computations ---
+                const timelineDates = computed(() => {
+                    if (!scheduleData.value || scheduleData.value.length === 0) return [];
+
+                    let minTime = Infinity;
+                    let maxTime = -Infinity;
+
+                    scheduleData.value.forEach(plan => {
+                        plan.tasks.forEach(t => {
+                            if (t.targetDateObj < minTime) minTime = t.targetDateObj;
+                            if (t.targetDateObj > maxTime) maxTime = t.targetDateObj;
+                        });
+                    });
+
+                    if (minTime === Infinity) {
+                        minTime = new Date().getTime();
+                        maxTime = new Date().getTime() + (7 * 24 * 60 * 60 * 1000);
+                    }
+
+                    const DAY_MS = 24 * 60 * 60 * 1000;
+                    // Add buffer to left and right
+                    const startDate = new Date(minTime - (4 * DAY_MS));
+                    const endDate = new Date(maxTime + (10 * DAY_MS));
+
+                    const dates = [];
+                    let currentDate = new Date(startDate);
+                    const daysStr = ['日', '月', '火', '水', '木', '金', '土'];
+
+                    while (currentDate <= endDate) {
+                        const y = currentDate.getFullYear();
+                        const m = (currentDate.getMonth() + 1).toString().padStart(2, '0');
+                        const d = currentDate.getDate().toString().padStart(2, '0');
+
+                        dates.push({
+                            fullDateStr: `${y}-${m}-${d}`,
+                            month: (currentDate.getMonth() + 1).toString(),
+                            date: d.toString(),
+                            day: daysStr[currentDate.getDay()]
+                        });
+
+                        currentDate.setDate(currentDate.getDate() + 1);
+                    }
+
+                    return dates;
+                });
+
+                // --- Layout Algorithm & Styling Helpers ---
+                const isHoliday = (dateStr) => {
+                    const holidays = [
+                        "2026-01-01", "2026-01-12", "2026-02-11", "2026-02-23", "2026-03-20",
+                        "2026-04-29", "2026-05-03", "2026-05-04", "2026-05-05", "2026-05-06",
+                        "2026-07-20", "2026-08-11", "2026-09-21", "2026-09-22", "2026-09-23",
+                        "2026-10-12", "2026-11-03", "2026-11-23"
+                    ];
+                    return holidays.includes(dateStr);
+                };
+
+                const getDayClass = (d) => {
+                    if (d.day === '日' || isHoliday(d.fullDateStr)) return 'bg-holiday text-red';
+                    if (d.day === '土') return 'bg-saturday text-blue';
+                    return '';
+                };
+
+                const getTaskColorClass = (task) => {
+                    if (!task.majorCat) return 'task-default';
+                    const cat = task.majorCat;
+                    if (cat.includes('播種') || cat.includes('育苗')) return 'task-blue';
+                    if (cat.includes('準備') || cat.includes('整地') || cat.includes('土づくり')) return 'task-brown';
+                    if (cat.includes('定植')) return 'task-green';
+                    if (cat.includes('管理') || cat.includes('施肥') || cat.includes('追肥')) return 'task-teal';
+                    if (cat.includes('防除') || cat.includes('消毒')) return 'task-red';
+                    if (cat.includes('収穫')) return 'task-orange';
+                    if (cat.includes('片付け') || cat.includes('撤去')) return 'task-grey';
+                    if (task.minorCat && task.minorCat.includes('収穫')) return 'task-orange';
+                    return 'task-default';
+                };
+
+                const getEstimatedHours = (task, plan) => {
+                    if (!task.baseWorkHours) return 0;
+                    let scale = 1;
+                    switch (task.unitKbn) {
+                        case '耕作面積': scale = plan.totalArea || 1; break;
+                        case '育苗トレイ': scale = Math.ceil((plan.totalSowingCount || 0) / 128) || 1; break;
+                        case '外周長':
+                            scale = plan.fields.reduce((sum, f) => sum + (fieldsData.value[f]?.perimeter || 0), 0) || 1;
+                            break;
+                        case '畝長さ': scale = plan.totalMulchLength || 1; break;
+                        case '定植苗': scale = plan.totalPlantingCount || 1; break;
+                        case '収穫量': scale = plan.totalHarvestYield || 1; break;
+                        default: scale = 1;
+                    }
+                    const qty = task.targetQty || 1;
+
+                    let baseHours = task.baseWorkHours;
+                    // 分・min表記の場合は時間(h)に換算する
+                    if (task.workHourUnit && (task.workHourUnit.includes('分') || task.workHourUnit.toLowerCase().includes('min'))) {
+                        baseHours = baseHours / 60.0;
+                    }
+
+                    let hours = (scale / qty) * baseHours;
+                    return parseFloat(hours.toFixed(1));
+                };
+
+                const getTaskLayout = (plan) => {
+                    const layout = [];
+                    const levels = [];
+                    const tasks = [...plan.tasks].sort((a, b) => a.targetDateObj - b.targetDateObj);
+
+                    // --- Merge continuous overlapping tasks ---
+                    const mergedBlocks = [];
+                    const continuousGroups = {}; // key: baseTaskId -> array of tasks
+
+                    tasks.forEach(t => {
+                        const dateIdx = timelineDates.value.findIndex(d => d.fullDateStr === t.targetDate);
+                        if (dateIdx === -1) return;
+
+                        // Compute scalable estimated hours based on field property
+                        t.estimatedHours = getEstimatedHours(t, plan);
+
+                        if (t.isContinuous) {
+                            const baseIdMatch = t.taskId.match(/^(.*)-rep\d+$/);
+                            const baseId = baseIdMatch ? baseIdMatch[1] : t.taskId;
+                            if (!continuousGroups[baseId]) continuousGroups[baseId] = [];
+                            continuousGroups[baseId].push({ ...t, dateIdx });
+                        } else {
+                            mergedBlocks.push({
+                                data: t,
+                                startIdx: dateIdx - 3,
+                                endIdx: dateIdx + 3,
+                                isContinuousGroup: false,
+                                mergedCount: 1
+                            });
+                        }
+                    });
+
+                    // Group continuous arrays
+                    Object.values(continuousGroups).forEach(group => {
+                        // group is sorted by date because `tasks` was sorted
+                        let currentBlock = null;
+
+                        group.forEach(t => {
+                            const tStart = t.dateIdx - 3;
+                            const tEnd = t.dateIdx + 3;
+
+                            if (!currentBlock) {
+                                currentBlock = {
+                                    data: t,
+                                    startIdx: tStart,
+                                    endIdx: tEnd,
+                                    isContinuousGroup: true,
+                                    mergedCount: 1
+                                };
+                            } else {
+                                // If the interval is small enough that the new task's +/- 3 days block 
+                                // overlaps or touches the current block (tStart <= currentBlock.endIdx + 1), merge them.
+                                if (tStart <= currentBlock.endIdx + 1) {
+                                    currentBlock.endIdx = Math.max(currentBlock.endIdx, tEnd);
+                                    currentBlock.mergedCount++;
+                                } else {
+                                    // Interval is large (> 6 days), break the block and start a new one
+                                    mergedBlocks.push(currentBlock);
+                                    currentBlock = {
+                                        data: t,
+                                        startIdx: tStart,
+                                        endIdx: tEnd,
+                                        isContinuousGroup: true,
+                                        mergedCount: 1
+                                    };
+                                }
+                            }
+                        });
+                        if (currentBlock) {
+                            mergedBlocks.push(currentBlock);
+                        }
+                    });
+
+                    // Re-sort overall merged blocks
+                    mergedBlocks.sort((a, b) => a.startIdx - b.startIdx);
+
+                    mergedBlocks.forEach(block => {
+                        // Calculate non-overlapping level
+                        let level = 0;
+                        while (levels[level] !== undefined && levels[level] > block.startIdx) {
+                            level++;
+                        }
+                        levels[level] = block.endIdx + 0.5; // slight push gap
+
+                        layout.push({
+                            data: block.data,
+                            // Label is 250px. Columns are 60px.
+                            left: 250 + (block.startIdx * 60),
+                            width: (block.endIdx - block.startIdx + 1) * 60,
+                            top: 12 + (level * 40), // 12px padding, 40px row height
+                            isContinuous: block.isContinuousGroup,
+                            mergedCount: block.mergedCount
+                        });
+                    });
+
+                    const height = Math.max((levels.length * 40) + 24, 70);
+                    return { layout, height };
+                };
+
+                // Methods
+                const toggleTheme = () => {
+                    isDark.value = !isDark.value;
+                };
+
+                const loadData = () => {
+                    loading.value = true;
+                    error.value = '';
+
+                    fetch('/api/schedule')
+                        .then(res => res.json())
+                        .then(data => {
+                            loading.value = false;
+                            if (data.error) {
+                                error.value = data.error;
+                            } else {
+                                scheduleData.value = data.schedules || [];
+                                fieldsData.value = data.fields || {};
+                            }
+                        })
+                        .catch(err => {
+                            loading.value = false;
+                            error.value = "通信エラー: " + err.message;
+                        });
+                };
+
+                // Map View Logic
+                const loadMapData = () => {
+                    fetch('/api/map')
+                        .then(res => res.json())
+                        .then(data => {
+                            mapData.value = data.polygons || [];
+                            if (currentView.value === 'map') {
+                                renderMainMap();
+                            }
+                        })
+                        .catch(err => {
+                            console.error("Map data fetch error", err);
+                        });
+                };
+
+                const renderMainMap = () => {
+                    if (mainLeafletMap) {
+                        mainLeafletMap.remove();
+                        mainLeafletMap = null;
+                    }
+                    mainLeafletMap = L.map('main-map').setView([36.0, 138.0], 14);
+
+                    // Use Google Maps Satellite view
+                    L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+                        attribution: 'Map data &copy; <a href="https://www.google.com/maps">Google</a>',
+                        maxZoom: 22
+                    }).addTo(mainLeafletMap);
+
+                    const folderColors = {};
+                    const colors = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+                    let cIdx = 0;
+                    const bounds = L.latLngBounds();
+
+                    // LAYER GROUPS DECLARATION
+                    const heatmapLayerGroup = L.layerGroup();
+                    const ridgesLayerGroup = L.layerGroup();
+
+                    // NEW GROUPS FOR ZOOM RESPONSIVENESS
+                    const detailLabelsGroup = L.layerGroup().addTo(mainLeafletMap);
+                    const groupedLabelsGroup = L.layerGroup();
+                    const nonCultivatedGroup = L.layerGroup().addTo(mainLeafletMap);
+                    const cultivatedGroup = L.layerGroup().addTo(mainLeafletMap);
+
+                    // --- ヒートマップ用のデータ保持配列 ---
+                    const heatmapFields = [];
+
+                    // Legend Control
+                    const heatmapLegendControl = L.control({ position: 'bottomright' });
+                    heatmapLegendControl.onAdd = function (map) {
+                        const div = L.DomUtil.create('div', 'info legend');
+                        div.id = 'heatmap-legend';
+                        div.style.background = 'rgba(255, 255, 255, 0.9)';
+                        div.style.padding = '8px 12px';
+                        div.style.borderRadius = '5px';
+                        div.style.boxShadow = '0 0 15px rgba(0,0,0,0.2)';
+                        div.style.display = 'none';
+                        div.style.minWidth = '160px';
+                        return div;
+                    };
+                    heatmapLegendControl.addTo(mainLeafletMap);
+
+                    // ポリゴン名をパースしてリージョン名（例：「東窪①-A」→「東窪」）を取得する関数
+                    const getRegionName = (name) => {
+                        if (!name) return 'unknown';
+                        // ①, ②, などの丸数字やハイフンの前までをリージョンとする
+                        const match = name.match(/^([^①②③④⑤⑥⑦⑧⑨⑩\-]+)/);
+                        return match ? match[1].trim() : name.trim();
+                    };
+
+                    mapData.value.forEach(poly => {
+                        // Assign distinct color per folder
+                        if (!folderColors[poly.folder]) {
+                            folderColors[poly.folder] = colors[cIdx % colors.length];
+                            cIdx++;
+                        }
+                        const pColor = folderColors[poly.folder];
+
+                        const coordPairs = poly.rawCoords.split(/\s+/).filter(p => p.includes(','));
+                        if (coordPairs.length < 3) return;
+
+                        const latlngs = coordPairs.map(cp => {
+                            const [lngStr, latStr] = cp.split(',');
+                            return [parseFloat(latStr), parseFloat(lngStr)];
+                        });
+
+                        // Main Polygon
+                        const polygon = L.polygon(latlngs, {
+                            color: pColor,
+                            weight: 2,
+                            opacity: 0.9,
+                            fillColor: pColor,
+                            fillOpacity: 0.15
+                        });
+
+                        // ホバーエフェクトの追加
+                        polygon.on('mouseover', function (e) {
+                            this.setStyle({ fillOpacity: 0.4, weight: 3 });
+                        });
+                        polygon.on('mouseout', function (e) {
+                            this.setStyle({ fillOpacity: 0.15, weight: 2 });
+                        });
+
+                        // レイヤー振り分け
+                        if (poly.folder === '耕作地') {
+                            polygon.addTo(cultivatedGroup);
+                        } else {
+                            polygon.addTo(nonCultivatedGroup);
+                        }
+
+                        bounds.extend(polygon.getBounds());
+                        const center = polygon.getBounds().getCenter();
+
+                        let infoHtml = `<div style="font-family: 'Noto Sans JP', sans-serif;">`;
+                        infoHtml += `<h4 style="margin: 0 0 8px 0; color: #1e3a8a;">${poly.name}</h4>`;
+                        infoHtml += `<div style="font-size: 13px; line-height: 1.4;">`;
+                        infoHtml += `<b>レイヤー:</b> ${poly.folder}<br/>`;
+                        if (poly.repElev !== null) infoHtml += `<b>代表標高:</b> ${poly.repElev}m<br/>`;
+                        if (poly.area !== null) infoHtml += `<b>面積:</b> ${poly.area.toFixed(1)}㎡<br/>`;
+                        if (poly.perimeter !== null) infoHtml += `<b>外周:</b> ${poly.perimeter.toFixed(1)}m<br/>`;
+
+                        if (poly.folder === '耕作地') {
+                            infoHtml += `<div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #ccc;">`;
+                            infoHtml += `<b>定植本数:</b> <span style="font-weight:bold; font-size: 15px; color:#10b981;">${poly.totalPlantCount || 0}</span> 本<br/>`;
+                            infoHtml += `<div style="color: #666; font-size: 11px; margin: 4px 0;">ー以下は内訳ー</div>`;
+                            infoHtml += `<b>畝数:</b> ${poly.totalRidgeCount || 0} 本<br/>`;
+                            infoHtml += `<b>畝幅:</b> ${poly.ridgeWidth || 0} cm<br/>`;
+                            infoHtml += `<b>畝間幅:</b> ${poly.ridgeGap || 0} cm<br/>`;
+                            infoHtml += `<b>条数:</b> ${poly.rowCount || 1} 条<br/>`;
+                            infoHtml += `<b>株間:</b> ${poly.plantSpacing || 0} cm<br/>`;
+                            infoHtml += `</div>`;
+                        }
+
+                        infoHtml += `</div></div>`;
+                        polygon.bindPopup(infoHtml);
+
+                        // Text Label on Polygon
+                        let areaText = poly.area ? Math.round(poly.area) + '㎡' : '';
+                        let textLine2 = areaText;
+                        if (poly.folder === '耕作地' && poly.totalPlantCount) {
+                            if (areaText) {
+                                textLine2 += ` ｜ ${poly.totalPlantCount}本`;
+                            } else {
+                                textLine2 = `${poly.totalPlantCount}本`;
+                            }
+                        }
+
+                        const detailLabel = L.marker(center, {
+                            icon: L.divIcon({
+                                className: 'map-field-label',
+                                html: `<div style="color:#ffffff; text-shadow:1px 1px 3px rgba(0,0,0,0.9), -1px -1px 3px rgba(0,0,0,0.9); font-weight:800; font-size:14px; text-align:center;">
+                                       ${poly.name}<br/>
+                                       <span style="font-size:10px;">${textLine2}</span>
+                                       </div>`,
+                                iconSize: [140, 40],
+                                iconAnchor: [70, 20]
+                            }),
+                            interactive: false
+                        });
+
+                        if (poly.folder === '耕作地') {
+                            detailLabel.addTo(detailLabelsGroup);
+                        } else {
+                            detailLabel.addTo(nonCultivatedGroup);
+                        }
+
+                        // Ridges
+                        poly.ridges.forEach((r, idx) => {
+                            // 1. 透明で太いヒットボックス用ライン（クリックの当たり判定を拡張）
+                            const hitBoxLine = L.polyline([
+                                [r.startLat, r.startLon],
+                                [r.endLat, r.endLon]
+                            ], {
+                                color: 'transparent',
+                                weight: 24, // 24pxの太さでクリックしやすくする
+                                opacity: 0,
+                                lineCap: 'round',
+                                interactive: true // クリック判定を有効化
+                            });
+
+                            // 2. 視覚用の畝ライン（zoomで太さが変わる）
+                            const rLine = L.polyline([
+                                [r.startLat, r.startLon],
+                                [r.endLat, r.endLon]
+                            ], {
+                                color: '#fb923c', // 畝の色
+                                weight: 2, // 初期値は控えめに、zoomendで動的調整
+                                opacity: 0.8,
+                                lineCap: 'round',
+                                lineJoin: 'round',
+                                interactive: false // ポップアップはhitBoxLineに任せるため不要
+                            });
+
+                            // レイヤーグループにまとめてridgesLayerGroupに追加
+                            const ridgeFeatureGroup = L.featureGroup([hitBoxLine, rLine]).addTo(ridgesLayerGroup);
+
+                            // 表示用のラインオブジェクトをセットしておく(zoomend時の太さ調整用)
+                            ridgeFeatureGroup._visualLine = rLine;
+
+                            // ホバーエフェクト（透明ヒットボックスに乗ったときに視覚線を太くくっきりさせる）
+                            hitBoxLine.on('mouseover', function () {
+                                rLine.setStyle({ weight: 6, opacity: 1 });
+                            });
+                            hitBoxLine.on('mouseout', function () {
+                                const zoom = mainLeafletMap.getZoom();
+                                const w = zoom <= 18 ? 0 : 2;
+                                const o = zoom <= 18 ? 0 : 0.9;
+                                rLine.setStyle({ weight: w, opacity: o });
+                            });
+
+                            let diffText = "取得不可";
+                            if (r.sAlt && r.eAlt) {
+                                diffText = Math.abs(r.sAlt - r.eAlt).toFixed(1) + "m";
+                            }
+
+                            // 吹き出しを設定
+                            const popupHtml = `
+                                <div style="font-family: 'Noto Sans JP', sans-serif; font-size:14px; min-width:160px; line-height:1.5;">
+                                    <h4 style="margin: 0 0 8px 0; color: #fb923c; border-bottom:1px solid #ddd; padding-bottom:4px;">畝番号: ${idx + 1}</h4>
+                                    <b>長さ:</b> ${r.length.toFixed(1)} m<br/>
+                                    <b>高低差:</b> <span style="color:#555;">${diffText}</span><br/>
+                                    <b>定植可能本数:</b> <span style="font-weight:bold; color:#10b981;">${r.plants}</span> 本
+                                </div>
+                            `;
+                            // 透明なヒットボックス側にポップアップをバインドする
+                            hitBoxLine.bindPopup(popupHtml);
+
+                        }); // End of poly.ridges.forEach
+
+                        // ---- 畝の連続ヒートマップ（ポリゴンメッシュ）生成 ----
+                        const fieldHeatmapData = {
+                            bounds: polygon.getBounds(),
+                            layers: [],
+                            minAlt: Infinity,
+                            maxAlt: -Infinity
+                        };
+
+                        if (poly.ridges && poly.ridges.length > 0) {
+                            // 各畝上の補間された座標点リストを生成
+                            const ridgePointsArrays = [];
+                            poly.ridges.forEach(r => {
+                                if (!r.sAlt || r.sAlt === 0) {
+                                    ridgePointsArrays.push(null);
+                                    return;
+                                }
+                                const basePts = [
+                                    { lat: r.startLat, lon: r.startLon, alt: r.sAlt },
+                                    { lat: r.startLat * 0.75 + r.endLat * 0.25, lon: r.startLon * 0.75 + r.endLon * 0.25, alt: r.q1Alt },
+                                    { lat: (r.startLat + r.endLat) / 2, lon: (r.startLon + r.endLon) / 2, alt: r.mAlt },
+                                    { lat: r.startLat * 0.25 + r.endLat * 0.75, lon: r.startLon * 0.25 + r.endLon * 0.75, alt: r.q3Alt },
+                                    { lat: r.endLat, lon: r.endLon, alt: r.eAlt }
+                                ];
+
+                                const detailedPts = [];
+                                const segmentsPerInterval = 2; // 区間ごとの分割数 (計8セグメント=9点)
+                                for (let i = 0; i < basePts.length - 1; i++) {
+                                    let pA = basePts[i];
+                                    let pB = basePts[i + 1];
+                                    for (let k = 0; k < segmentsPerInterval; k++) {
+                                        let t = k / segmentsPerInterval;
+                                        detailedPts.push({
+                                            lat: pA.lat * (1 - t) + pB.lat * t,
+                                            lon: pA.lon * (1 - t) + pB.lon * t,
+                                            alt: pA.alt * (1 - t) + pB.alt * t
+                                        });
+                                    }
+                                }
+                                detailedPts.push(basePts[basePts.length - 1]);
+                                ridgePointsArrays.push(detailedPts);
+                            });
+
+                            // 隣り合う畝の間にポリゴン（四角形）を描画して隙間を埋める
+                            for (let i = 0; i < ridgePointsArrays.length - 1; i++) {
+                                const ptsA = ridgePointsArrays[i];
+                                const ptsB = ridgePointsArrays[i + 1];
+                                if (!ptsA || !ptsB) continue;
+
+                                for (let j = 0; j < ptsA.length - 1; j++) {
+                                    const v1 = ptsA[j];
+                                    const v2 = ptsB[j];
+                                    const v3 = ptsB[j + 1];
+                                    const v4 = ptsA[j + 1];
+
+                                    const avgAlt = (v1.alt + v2.alt + v3.alt + v4.alt) / 4;
+                                    fieldHeatmapData.minAlt = Math.min(fieldHeatmapData.minAlt, avgAlt);
+                                    fieldHeatmapData.maxAlt = Math.max(fieldHeatmapData.maxAlt, avgAlt);
+
+                                    const heatPoly = L.polygon([
+                                        [v1.lat, v1.lon],
+                                        [v2.lat, v2.lon],
+                                        [v3.lat, v3.lon],
+                                        [v4.lat, v4.lon]
+                                    ], {
+                                        weight: 1, // 1px border with same color eliminates visual gaps
+                                        fillOpacity: 0.65,
+                                        smoothFactor: 0,
+                                        color: 'transparent', // 表示更新時に動的にセットする
+                                        fillColor: 'transparent'
+                                    }).addTo(heatmapLayerGroup);
+
+                                    fieldHeatmapData.layers.push({ polygon: heatPoly, alt: avgAlt });
+                                }
+                            }
+                            if (fieldHeatmapData.layers.length > 0) {
+                                heatmapFields.push(fieldHeatmapData);
+                            }
+                        }
+                    });
+
+                    // --- 耕作地のグループラベル生成 ---
+                    const regionData = {};
+                    mapData.value.forEach(poly => {
+                        if (poly.folder === '耕作地') {
+                            const region = getRegionName(poly.name);
+                            if (!regionData[region]) {
+                                regionData[region] = { area: 0, positions: [], name: region, elevSum: 0, elevCount: 0 };
+                            }
+                            if (poly.area) regionData[region].area += poly.area;
+                            if (poly.repElev) {
+                                regionData[region].elevSum += poly.repElev;
+                                regionData[region].elevCount += 1;
+                            }
+
+                            const coordPairs = poly.rawCoords.split(/\s+/).filter(p => p.includes(','));
+                            if (coordPairs.length >= 3) {
+                                const latlngs = coordPairs.map(cp => {
+                                    const [lngStr, latStr] = cp.split(',');
+                                    return [parseFloat(latStr), parseFloat(lngStr)];
+                                });
+                                regionData[region].positions.push(L.polygon(latlngs).getBounds().getCenter());
+                            }
+                        }
+                    });
+
+                    Object.values(regionData).forEach(reg => {
+                        if (reg.positions.length > 0) {
+                            const avgLat = reg.positions.reduce((sum, p) => sum + p.lat, 0) / reg.positions.length;
+                            const avgLng = reg.positions.reduce((sum, p) => sum + p.lng, 0) / reg.positions.length;
+                            const avgElevHtml = reg.elevCount > 0 ? `<br/><span style="font-size:12px;">代表標高: ${(reg.elevSum / reg.elevCount).toFixed(1)}m</span>` : '';
+
+                            L.marker([avgLat, avgLng], {
+                                icon: L.divIcon({
+                                    className: 'map-field-label-grouped',
+                                    html: `<div style="color:#ffffff; text-shadow:1px 1px 3px rgba(0,0,0,0.9), -1px -1px 3px rgba(0,0,0,0.9); font-weight:800; font-size:18px; text-align:center; background: rgba(0,0,0,0.5); padding:6px 10px; border-radius:8px; border:2px solid #fff;">
+                                           ${reg.name}<br/>
+                                           <span style="font-size:13px;">${Math.round(reg.area).toLocaleString()}㎡</span>
+                                           ${avgElevHtml}
+                                           </div>`,
+                                    iconSize: [120, 70],
+                                    iconAnchor: [60, 35]
+                                }),
+                                interactive: false
+                            }).addTo(groupedLabelsGroup);
+                        }
+                    });
+
+                    // Add layers to control (Overlays)
+                    const overlays = {
+                        "🟠 畝ライン": ridgesLayerGroup,
+                        "🟢 高低差": heatmapLayerGroup
+                    };
+                    L.control.layers(null, overlays, { collapsed: false, position: 'topright' }).addTo(mainLeafletMap);
+
+                    // 初期状態ではヒートマップも畝も重いため任意でON（要望によりデフォルトOFF）
+                    // ridgesLayerGroup.addTo(mainLeafletMap);
+
+                    // --- ズームレベルに応じたレイヤーとスタイルの調整 ---
+                    const updateRidgeStyles = () => {
+                        if (!mainLeafletMap) return;
+                        const zoom = mainLeafletMap.getZoom();
+                        let weight = 6;
+                        let opacity = 0.9;
+
+                        // 畝の表示/非表示制御
+                        if (zoom <= 18) {
+                            weight = 0; // ほぼ見えないレベル
+                            opacity = 0;
+                        } else {
+                            weight = 2; // 最大ズーム時(外径と同じ太さ)
+                            opacity = 0.9;
+                        }
+
+                        ridgesLayerGroup.eachLayer(layerGroup => {
+                            if (layerGroup._visualLine) {
+                                layerGroup._visualLine.setStyle({ weight: weight, opacity: opacity });
+                            }
+                        });
+
+                        // グループラベルと個別表示の切り替え (例: ズーム17以下でグループ化)
+                        if (zoom <= 17) {
+                            if (mainLeafletMap.hasLayer(detailLabelsGroup)) mainLeafletMap.removeLayer(detailLabelsGroup);
+                            if (mainLeafletMap.hasLayer(nonCultivatedGroup)) mainLeafletMap.removeLayer(nonCultivatedGroup);
+                            if (!mainLeafletMap.hasLayer(groupedLabelsGroup)) mainLeafletMap.addLayer(groupedLabelsGroup);
+                        } else {
+                            if (!mainLeafletMap.hasLayer(detailLabelsGroup)) mainLeafletMap.addLayer(detailLabelsGroup);
+                            if (!mainLeafletMap.hasLayer(nonCultivatedGroup)) mainLeafletMap.addLayer(nonCultivatedGroup);
+                            if (mainLeafletMap.hasLayer(groupedLabelsGroup)) mainLeafletMap.removeLayer(groupedLabelsGroup);
+                        }
+                    };
+
+                    // --- ヒートマップの動的更新（表示エリアに合わせたダイナミックレンジ） ---
+                    const updateHeatmapStyles = () => {
+                        const legendDiv = document.getElementById('heatmap-legend');
+                        if (!mainLeafletMap.hasLayer(heatmapLayerGroup)) {
+                            if (legendDiv) legendDiv.style.display = 'none';
+                            return;
+                        }
+
+                        const mapBounds = mainLeafletMap.getBounds();
+                        let visibleMin = Infinity;
+                        let visibleMax = -Infinity;
+                        const visibleFields = [];
+
+                        for (const field of heatmapFields) {
+                            if (mapBounds.intersects(field.bounds)) {
+                                visibleFields.push(field);
+                                visibleMin = Math.min(visibleMin, field.minAlt);
+                                visibleMax = Math.max(visibleMax, field.maxAlt);
+                            }
+                        }
+
+                        if (visibleMin !== Infinity && visibleMax !== -Infinity) {
+                            const range = Math.max(1, visibleMax - visibleMin); // 平坦な場合ゼロ割防止
+
+                            for (const field of visibleFields) {
+                                for (const layerData of field.layers) {
+                                    let t = (layerData.alt - visibleMin) / range;
+                                    t = Math.max(0, Math.min(1, t));
+                                    let h = Math.round(240 * (1 - t)); // 青(240) -> 赤(0)
+                                    const color = `hsl(${h}, 100%, 50%)`;
+                                    layerData.polygon.setStyle({ color: color, fillColor: color });
+                                }
+                            }
+
+                            if (legendDiv) {
+                                legendDiv.style.display = 'block';
+                                legendDiv.innerHTML = `
+                                    <div style="font-size: 13px; font-weight: bold; margin-bottom: 8px; border-bottom:1px solid #ddd; padding-bottom:4px;">高低差 (表示エリア内基準)</div>
+                                    <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px;">
+                                        <span style="color: #1e3a8a; font-weight: bold;">${visibleMin.toFixed(1)}m (低)</span>
+                                        <span style="color: #ef4444; font-weight: bold;">${visibleMax.toFixed(1)}m (高)</span>
+                                    </div>
+                                    <div style="width: 100%; height: 12px; background: linear-gradient(to right, hsl(240,100%,50%), hsl(180,100%,50%), hsl(120,100%,50%), hsl(60,100%,50%), hsl(0,100%,50%)); border-radius: 4px; margin-top: 6px;"></div>
+                                `;
+                            }
+                        } else {
+                            if (legendDiv) legendDiv.style.display = 'none';
+                        }
+                    };
+
+                    mainLeafletMap.on('zoomend', () => {
+                        updateRidgeStyles();
+                        updateHeatmapStyles();
+                    });
+                    mainLeafletMap.on('moveend', updateHeatmapStyles);
+                    mainLeafletMap.on('overlayadd', (e) => {
+                        if (e.layer === heatmapLayerGroup) updateHeatmapStyles();
+                    });
+                    mainLeafletMap.on('overlayremove', (e) => {
+                        if (e.layer === heatmapLayerGroup) {
+                            const legendDiv = document.getElementById('heatmap-legend');
+                            if (legendDiv) legendDiv.style.display = 'none';
+                        }
+                    });
+
+                    if (mapData.value.length > 0 && bounds.isValid()) {
+                        mainLeafletMap.fitBounds(bounds);
+                        // 初回描画時にも適用
+                        setTimeout(() => {
+                            mainLeafletMap.fire('zoomend');
+                            updateHeatmapStyles();
+                        }, 50);
+                    }
+                };
+
+                const openFieldModal = (fieldName) => {
+                    if (!fieldName || fieldName === '未定') return;
+                    selectedFieldName.value = fieldName;
+                    fieldDialog.value = true;
+
+                    if (selectedFieldInfo.value && selectedFieldInfo.value.polygonCoords) {
+                        Vue.nextTick(() => {
+                            setTimeout(() => {
+                                if (modalLeafletMap) {
+                                    modalLeafletMap.remove();
+                                    modalLeafletMap = null;
+                                }
+
+                                modalLeafletMap = L.map('polygon-map', {
+                                    attributionControl: true
+                                });
+
+                                L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+                                    attribution: 'Map data &copy; <a href="https://www.google.com/maps">Google</a>',
+                                    maxZoom: 22
+                                }).addTo(modalLeafletMap);
+
+                                const modalRidgesLayerGroup = L.layerGroup();
+                                const modalHeatmapLayerGroup = L.layerGroup();
+                                const bounds = L.latLngBounds();
+
+                                // 1. 農地ポリゴン描画
+                                const coords = selectedFieldInfo.value.polygonCoords.coordinates[0];
+                                const latlngs = coords.map(c => [c[1], c[0]]);
+                                L.polygon(latlngs, {
+                                    color: '#ef4444',
+                                    weight: 2,
+                                    opacity: 0.8,
+                                    fillOpacity: 0.1
+                                }).addTo(modalLeafletMap);
+                                latlngs.forEach(ll => bounds.extend(ll));
+
+                                // 2. 畝ライン（ridges）の描画
+                                const rData = selectedFieldInfo.value.ridges;
+                                if (rData && rData.length > 0) {
+                                    rData.forEach(r => {
+                                        if (typeof r.startLat === 'number' && typeof r.startLon === 'number' && typeof r.endLat === 'number' && typeof r.endLon === 'number') {
+                                            const pStart = [r.startLat, r.startLon];
+                                            const pEnd = [r.endLat, r.endLon];
+                                            const rLine = L.polyline([pStart, pEnd], {
+                                                color: '#f97316', // orange-500
+                                                weight: 2,
+                                                opacity: 0.9,
+                                                dashArray: '4,4'
+                                            });
+                                            modalRidgesLayerGroup.addLayer(rLine);
+                                        }
+                                    });
+                                }
+
+                                // 3. 高低差ヒートマップ（標高メッシュポリゴン）の描画
+                                const modalHeatmapLayers = [];
+                                let modalMinAlt = Infinity;
+                                let modalMaxAlt = -Infinity;
+
+                                if (rData && rData.length > 0) {
+                                    const ridgePointsArrays = [];
+                                    rData.forEach(r => {
+                                        if (!r.sAlt || r.sAlt === 0) {
+                                            ridgePointsArrays.push(null);
+                                            return;
+                                        }
+                                        const basePts = [
+                                            { lat: r.startLat, lon: r.startLon, alt: r.sAlt },
+                                            { lat: r.startLat * 0.75 + r.endLat * 0.25, lon: r.startLon * 0.75 + r.endLon * 0.25, alt: r.q1Alt },
+                                            { lat: (r.startLat + r.endLat) / 2, lon: (r.startLon + r.endLon) / 2, alt: r.mAlt },
+                                            { lat: r.startLat * 0.25 + r.endLat * 0.75, lon: r.startLon * 0.25 + r.endLon * 0.75, alt: r.q3Alt },
+                                            { lat: r.endLat, lon: r.endLon, alt: r.eAlt }
+                                        ];
+
+                                        const detailedPts = [];
+                                        const segmentsPerInterval = 2; // 区間ごとの分割数
+                                        for (let i = 0; i < basePts.length - 1; i++) {
+                                            let pA = basePts[i];
+                                            let pB = basePts[i + 1];
+                                            for (let k = 0; k < segmentsPerInterval; k++) {
+                                                let t = k / segmentsPerInterval;
+                                                detailedPts.push({
+                                                    lat: pA.lat * (1 - t) + pB.lat * t,
+                                                    lon: pA.lon * (1 - t) + pB.lon * t,
+                                                    alt: pA.alt * (1 - t) + pB.alt * t
+                                                });
+                                            }
+                                        }
+                                        detailedPts.push(basePts[basePts.length - 1]);
+                                        ridgePointsArrays.push(detailedPts);
+                                    });
+
+                                    for (let i = 0; i < ridgePointsArrays.length - 1; i++) {
+                                        const ptsA = ridgePointsArrays[i];
+                                        const ptsB = ridgePointsArrays[i + 1];
+                                        if (!ptsA || !ptsB) continue;
+
+                                        for (let j = 0; j < ptsA.length - 1; j++) {
+                                            const v1 = ptsA[j];
+                                            const v2 = ptsB[j];
+                                            const v3 = ptsB[j + 1];
+                                            const v4 = ptsA[j + 1];
+
+                                            const avgAlt = (v1.alt + v2.alt + v3.alt + v4.alt) / 4;
+                                            modalMinAlt = Math.min(modalMinAlt, avgAlt);
+                                            modalMaxAlt = Math.max(modalMaxAlt, avgAlt);
+
+                                            const heatPoly = L.polygon([
+                                                [v1.lat, v1.lon],
+                                                [v2.lat, v2.lon],
+                                                [v3.lat, v3.lon],
+                                                [v4.lat, v4.lon]
+                                            ], {
+                                                weight: 1,
+                                                fillOpacity: 0.65,
+                                                smoothFactor: 0,
+                                                color: 'transparent',
+                                                fillColor: 'transparent'
+                                            }).addTo(modalHeatmapLayerGroup);
+
+                                            modalHeatmapLayers.push({ polygon: heatPoly, alt: avgAlt });
+                                        }
+                                    }
+                                }
+
+                                const updateModalHeatmapColors = () => {
+                                    const legendDiv = document.getElementById('modal-heatmap-legend');
+                                    if (!modalLeafletMap.hasLayer(modalHeatmapLayerGroup)) {
+                                        if (legendDiv) legendDiv.style.display = 'none';
+                                        return;
+                                    }
+
+                                    if (modalMinAlt !== Infinity && modalMaxAlt !== -Infinity) {
+                                        const range = Math.max(1, Math.abs(modalMaxAlt - modalMinAlt));
+                                        for (const layerData of modalHeatmapLayers) {
+                                            let t = (layerData.alt - modalMinAlt) / range;
+                                            t = Math.max(0, Math.min(1, t));
+                                            let h = Math.round(240 * (1 - t)); // 青(240) -> 赤(0)
+                                            const color = `hsl(${h}, 100%, 50%)`;
+                                            layerData.polygon.setStyle({ color: color, fillColor: color });
+                                        }
+
+                                        if (legendDiv) {
+                                            legendDiv.style.display = 'block';
+                                            document.getElementById('modal-legend-max').textContent = modalMaxAlt.toFixed(1) + 'm (高)';
+                                            document.getElementById('modal-legend-min').textContent = modalMinAlt.toFixed(1) + 'm (低)';
+                                        }
+                                    }
+                                };
+
+                                // レイヤーコントロールを追加
+                                const overlays = {
+                                    "🟠 畝ライン": modalRidgesLayerGroup,
+                                    "🟢 高低差": modalHeatmapLayerGroup
+                                };
+                                L.control.layers(null, overlays, { collapsed: false, position: 'topright' }).addTo(modalLeafletMap);
+
+                                modalLeafletMap.on('overlayadd', (e) => {
+                                    if (e.layer === modalHeatmapLayerGroup) {
+                                        updateModalHeatmapColors();
+                                    }
+                                });
+                                modalLeafletMap.on('overlayremove', (e) => {
+                                    if (e.layer === modalHeatmapLayerGroup) {
+                                        const legendDiv = document.getElementById('modal-heatmap-legend');
+                                        if (legendDiv) legendDiv.style.display = 'none';
+                                    }
+                                });
+
+                                // Initial styling
+                                updateModalHeatmapColors();
+
+                                if (bounds.isValid()) {
+                                    modalLeafletMap.fitBounds(bounds, { padding: [20, 20] });
+                                    setTimeout(() => modalLeafletMap.invalidateSize(), 50);
+                                }
+                            }, 300);
+                        });
+                    }
+                };
+
+                Vue.watch(currentView, (newVal) => {
+                    if (newVal === 'map') {
+                        Vue.nextTick(() => {
+                            if (mainLeafletMap) {
+                                mainLeafletMap.invalidateSize();
+                            } else {
+                                renderMainMap();
+                            }
+                        });
+                    }
+                });
+
+                const openReportDialog = (task) => {
+                    selectedTask.value = task;
+                    reportForm.value = {
+                        actualHours: task.estimatedHours !== undefined ? task.estimatedHours : (task.baseWorkHours || 0),
+                        actualMaterialQty: task.materialQty || 0,
+                        workerName: localStorage.getItem('agri_worker_name') || '',
+                        memo: ''
+                    };
+                    reportDialog.value = true;
+                };
+
+                const showTaskDetails = (task, plan) => {
+                    // For Gantt view clicking
+                    const mergedTask = { ...task, planId: plan.planId, cropName: plan.cropName, field: plan.field };
+                    openReportDialog(mergedTask);
+                };
+
+                const submitReport = () => {
+                    if (!selectedTask.value) return;
+
+                    saving.value = true;
+
+                    // Save worker name to local storage for convenience
+                    if (reportForm.value.workerName) {
+                        localStorage.setItem('agri_worker_name', reportForm.value.workerName);
+                    }
+
+                    const payload = {
+                        planId: selectedTask.value.planId,
+                        taskId: selectedTask.value.taskId,
+                        cropName: selectedTask.value.cropName,
+                        majorCat: selectedTask.value.majorCat,
+                        midCat: selectedTask.value.midCat,
+                        minorCat: selectedTask.value.minorCat,
+                        actualHours: reportForm.value.actualHours,
+                        actualMaterialQty: reportForm.value.actualMaterialQty,
+                        workerName: reportForm.value.workerName,
+                        memo: reportForm.value.memo
+                    };
+
+                    fetch('/api/tasks/report', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    })
+                        .then(res => res.json())
+                        .then(result => {
+                            saving.value = false;
+                            if (result.success) {
+                                reportDialog.value = false;
+                                snackbar.value = { show: true, color: 'success', message: result.message || '保存しました' };
+                                // Local removal from today's tasks
+                                scheduleData.value.forEach(p => {
+                                    p.tasks = p.tasks.filter(t => t.taskId !== selectedTask.value.taskId);
+                                });
+                            } else {
+                                snackbar.value = { show: true, color: 'error', message: result.error || '保存に失敗しました' };
+                            }
+                        })
+                        .catch(err => {
+                            saving.value = false;
+                            snackbar.value = { show: true, color: 'error', message: '通信エラー: ' + err.message };
+                        });
+                };
+
+                // Initialize
+                onMounted(() => {
+                    loadData();
+                    loadMapData();
+                });
+
+                return {
+                    drawer, currentView, isDark, toggleTheme,
+                    loading, error, loadData,
+                    todayStr, todayDateStr, todayTasks, scheduleData,
+                    timelineDates, getDayClass, getTaskColorClass, getTaskLayout,
+                    reportDialog, saving, selectedTask, reportForm, openReportDialog, showTaskDetails, submitReport,
+                    fieldsData, fieldDialog, selectedFieldName, selectedFieldInfo, openFieldModal,
+                    snackbar,
+                    selectedCrops, availableCrops, filteredScheduleData,
+                    getCropColor, formatCropTitle, formatCropSubtitle,
+                    expandedRows, toggleRow, filteredTotals
+                };
+            }
+        });
+
+        app.use(vuetify).mount('#app');
+    </script>
+</body>
+
+</html>

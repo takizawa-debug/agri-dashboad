@@ -1,0 +1,17 @@
+{
+  "name": "cf-agri-dashboard",
+  "version": "1.0.0",
+  "description": "Agricultural Dashboard on Cloudflare",
+  "private": true,
+  "scripts": {
+    "start": "wrangler pages dev public",
+    "deploy": "wrangler pages deploy public"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  },
+  "dependencies": {
+    "@turf/turf": "^7.3.4",
+    "xlsx": "^0.18.5"
+  }
+}

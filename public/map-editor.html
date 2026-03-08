@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>圃場設計マスタ (マップベース)</title>
+    <!-- Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap"
+        rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
+
+    <!-- Vuetify CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/vuetify@3.4.0/dist/vuetify.min.css" rel="stylesheet">
+
+    <!-- Leaflet CSS & Draw CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            margin: 0;
+        }
+
+        #map-container {
+            height: calc(100vh - 64px);
+            width: 100%;
+            z-index: 1;
+        }
+
+        .info-panel {
+            height: calc(100vh - 64px);
+            overflow-y: auto;
+            border-left: 1px solid #e0e0e0;
+            background: #fafafa;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #2e7d32;
+        }
+
+        /* Tooltip Colors */
+        .tooltip-耕作地 {
+            background-color: rgba(76, 175, 80, 0.85);
+            color: white;
+            border: 1px solid #2e7d32;
+            font-weight: bold;
+            font-size: 0.8rem;
+        }
+
+        .tooltip-駐車場 {
+            background-color: rgba(158, 158, 158, 0.85);
+            color: white;
+            border: 1px solid #757575;
+            font-weight: bold;
+            font-size: 0.8rem;
+        }
+
+        .tooltip-その他施設 {
+            background-color: rgba(255, 152, 0, 0.85);
+            color: white;
+            border: 1px solid #ef6c00;
+            font-weight: bold;
+            font-size: 0.8rem;
+        }
+
+        .tooltip-草刈り対応 {
+            background-color: rgba(139, 195, 74, 0.85);
+            color: white;
+            border: 1px solid #558b2f;
+            font-weight: bold;
+            font-size: 0.8rem;
+        }
+
+        .tooltip-農業用ハウス {
+            background-color: rgba(3, 169, 244, 0.85);
+            color: white;
+            border: 1px solid #0277bd;
+            font-weight: bold;
+            font-size: 0.8rem;
+        }
+
+        /* Zoom Toggle Logic */
+        .map-zoomed-out .detail-label {
+            display: none !important;
+        }
+
+        .map-zoomed-in .group-label {
+            display: none !important;
+        }
+
+        .map-zoomed-out path.layer-parking {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <v-app>
+            <!-- App Bar -->
+            <v-app-bar color="blue-grey-darken-3" elevation="2">
+                <v-btn icon href="admin.html"><v-icon>mdi-arrow-left</v-icon></v-btn>
+                <v-app-bar-title class="font-weight-bold">
+                    <v-icon class="mr-2">mdi-map-marker-path</v-icon>
+                    圃場マスタ
+                </v-app-bar-title>
+                <v-spacer></v-spacer>
+
+                <div class="d-none d-md-flex align-center mr-4">
+                    <span class="text-caption text-grey-lighten-1 mr-2">表示レイヤー:</span>
+                    <v-checkbox v-model="visibleLayers" value="耕作地" label="耕作地" hide-details density="compact"
+                        class="mr-2 font-weight-bold text-green-darken-1" color="green"
+                        @update:modelValue="renderFieldsOnMap"></v-checkbox>
+                    <v-checkbox v-model="visibleLayers" value="農業用ハウス" label="農業用ハウス" hide-details density="compact"
+                        class="mr-2 font-weight-bold text-light-blue-darken-1" color="light-blue"
+                        @update:modelValue="renderFieldsOnMap"></v-checkbox>
+                    <v-checkbox v-model="visibleLayers" value="その他施設" label="その他施設" hide-details density="compact"
+                        class="mr-2 font-weight-bold text-orange-darken-1" color="orange"
+                        @update:modelValue="renderFieldsOnMap"></v-checkbox>
+                    <v-checkbox v-model="visibleLayers" value="草刈り対応" label="草刈り対応" hide-details density="compact"
+                        class="mr-2 font-weight-bold text-light-green-darken-2" color="light-green"
+                        @update:modelValue="renderFieldsOnMap"></v-checkbox>
+                    <v-checkbox v-model="visibleLayers" value="駐車場" label="駐車場" hide-details density="compact"
+                        class="mr-4 font-weight-bold text-grey-darken-1" color="grey"
+                        @update:modelValue="renderFieldsOnMap"></v-checkbox>
+                </div>
+
+                <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="startCreateFlow">
+                    新規作成
+                </v-btn>
+            </v-app-bar>
+
+            <v-main>
+                <v-row no-gutters>
+                    <!-- Left: Interactive Map -->
+                    <v-col cols="12" md="8">
+                        <div id="map-container"></div>
+                    </v-col>
+
+                    <!-- Right: Design Parameters & Metrics -->
+                    <v-col cols="12" md="4" class="info-panel pa-4">
+                        <v-card v-if="!selectedFieldId" elevation="0" color="transparent" class="text-center mt-10">
+                            <v-icon class="mdi mdi-cursor-default-click" size="64" color="grey-lighten-1"></v-icon>
+                            <p class="text-grey-darken-1 mt-4">マップ上の農地（緑色の図形）をクリックして<br>畝や定植のシミュレーションを開始してください。</p>
+                            <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" class="mt-6"
+                                @click="startCreateFlow">
+                                圃場の新規追加
+                            </v-btn>
+                        </v-card>
+
+                        <div v-else>
+                            <v-card elevation="0" class="mb-4 bg-transparent">
+                                <v-text-field v-model="fieldProps.name" label="農地・施設名称" variant="outlined"
+                                    density="compact" hide-details class="mb-2 bg-white"></v-text-field>
+                                <v-select v-model="fieldProps.folder"
+                                    :items="['耕作地', 'その他施設', '草刈り対応', '農業用ハウス', '駐車場']" label="分類 (レイヤー)"
+                                    variant="outlined" density="compact" hide-details class="bg-white"></v-select>
+                            </v-card>
+
+                            <!-- Dynamic Metrics Container -->
+                            <v-card elevation="1" rounded="lg" class="pa-4 mb-4" border>
+                                <div class="d-flex align-center mb-3">
+                                    <v-icon color="blue-grey" class="mr-2">mdi-vector-polygon</v-icon>
+                                    <strong>空間データ</strong>
+                                </div>
+                                <v-row dense>
+                                    <v-col cols="6">
+                                        <div class="text-caption text-grey">総面積</div>
+                                        <div class="stat-value text-blue-darken-2 d-flex align-baseline">
+                                            {{ metrics.area.toLocaleString(undefined, {maximumFractionDigits:1}) }}
+                                            <span class="text-caption ml-1">㎡</span>
+                                        </div>
+                                    </v-col>
+                                    <v-col cols="6">
+                                        <div class="text-caption text-grey">外周長</div>
+                                        <div class="stat-value text-blue-darken-2 d-flex align-baseline">
+                                            {{ metrics.perimeter.toLocaleString(undefined, {maximumFractionDigits:1}) }}
+                                            <span class="text-caption ml-1">m</span>
+                                        </div>
+                                    </v-col>
+                                    <v-col cols="12" class="pt-2 border-t mt-2"
+                                        v-if="metrics.centroidElevation !== null">
+                                        <div class="text-caption text-grey"><v-icon size="small"
+                                                class="mr-1">mdi-image-filter-hdr</v-icon>代表標高 (重心)</div>
+                                        <div class="stat-value text-brown-darken-2 d-flex align-baseline">
+                                            {{ metrics.centroidElevation }}
+                                            <span class="text-caption ml-1">m</span>
+                                        </div>
+                                    </v-col>
+                                </v-row>
+                            </v-card>
+
+                            <!-- Planting Design Parameters -->
+                            <v-slide-y-transition>
+                                <v-card v-if="fieldProps.folder === '耕作地'" elevation="2" rounded="lg"
+                                    color="green-lighten-5">
+                                    <v-card-title class="text-subtitle-1 py-3 bg-green-darken-1 text-white">
+                                        <v-icon class="mr-2 pb-1">mdi-sprout</v-icon>
+                                        畝・定植シミュレーション (高度分割法)
+                                    </v-card-title>
+
+                                    <v-card-text class="pa-4">
+                                        <div class="text-caption text-grey-darken-2 mb-3">
+                                            「畝方向データ（LineString）」の角度に基づき、畝幅・畝間の間隔で図形を正確に等分割・交差計算して、実際に引ける長さから定植数を割り出します。
+                                        </div>
+
+                                        <v-row dense>
+                                            <v-col cols="6">
+                                                <v-text-field v-model.number="design.ridgeWidth" label="畝幅 (cm)"
+                                                    type="number" suffix="cm" variant="outlined" density="compact"
+                                                    @update:modelValue="handleAutoSave"></v-text-field>
+                                            </v-col>
+                                            <v-col cols="6">
+                                                <v-text-field v-model.number="design.ridgeGap" label="畝間 (cm)"
+                                                    type="number" suffix="cm" variant="outlined" density="compact"
+                                                    @update:modelValue="handleAutoSave"></v-text-field>
+                                            </v-col>
+                                            <v-col cols="6">
+                                                <v-text-field v-model.number="design.rowCount" label="条数 (畝内)"
+                                                    type="number" suffix="条" variant="outlined" density="compact"
+                                                    @update:modelValue="handleAutoSave"></v-text-field>
+                                            </v-col>
+                                            <v-col cols="6">
+                                                <v-text-field v-model.number="design.plantSpacing" label="株間 (cm)"
+                                                    type="number" suffix="cm" variant="outlined" density="compact"
+                                                    @update:modelValue="handleAutoSave"></v-text-field>
+                                            </v-col>
+                                            <v-col cols="12">
+                                                <v-text-field v-model.number="design.ridgeAngle" label="畝方向 (角度)"
+                                                    type="number" suffix="度" variant="outlined" density="compact"
+                                                    hint="線データがある場合は自動算出されます。手動で変更すると上書きされます。" persistent-hint
+                                                    @update:modelValue="handleAutoSave"></v-text-field>
+                                            </v-col>
+
+                                            <!-- Computed Output -->
+                                            <v-col cols="12" class="mt-2">
+                                                <v-card border elevation="0" class="bg-white pa-3">
+                                                    <v-row>
+                                                        <v-col cols="6" class="text-center border-e">
+                                                            <div class="text-caption text-grey">算出 畝数</div>
+                                                            <div class="text-h5 font-weight-bold text-green-darken-3">
+                                                                {{ metrics.estRidgeCount }} <span
+                                                                    class="text-caption">本</span>
+                                                            </div>
+                                                        </v-col>
+                                                        <v-col cols="6" class="text-center">
+                                                            <div class="text-caption text-grey">定植可能（最大）</div>
+                                                            <div class="text-h5 font-weight-bold text-green-darken-3">
+                                                                {{ metrics.estPlantCount.toLocaleString() }} <span
+                                                                    class="text-caption">本</span>
+                                                            </div>
+                                                        </v-col>
+                                                    </v-row>
+                                                </v-card>
+                                            </v-col>
+
+                                            <!-- Heatmap Button -->
+                                            <v-col cols="12">
+                                                <v-btn block color="secondary" variant="tonal"
+                                                    prepend-icon="mdi-map-marker-radius" :loading="isAnalyzingElevation"
+                                                    @click="analyzeElevation"
+                                                    :disabled="metrics.estRidgeCount === 0 || fieldProps.folder !== '耕作地'">
+                                                    標高・ヒートマップ解析
+                                                </v-btn>
+                                            </v-col>
+                                        </v-row>
+                                    </v-card-text>
+                                </v-card>
+                            </v-slide-y-transition>
+
+                            <!-- Action Zone -->
+                            <v-card elevation="0" class="mt-4 bg-transparent text-center border-t pt-4">
+                                <v-row dense>
+                                    <v-col cols="12">
+                                        <v-btn block :color="isEditingShape ? 'amber-darken-2' : 'info'" variant="flat"
+                                            :prepend-icon="isEditingShape ? 'mdi-check' : 'mdi-vector-polyline-edit'"
+                                            @click="toggleEditShape">
+                                            {{ isEditingShape ? '形状変更を確定 (自動保存)' : '圃場の形状を編集' }}
+                                        </v-btn>
+                                    </v-col>
+                                    <v-col cols="12" class="mt-2">
+                                        <v-btn block color="error" variant="tonal" prepend-icon="mdi-delete"
+                                            @click="deleteShape">
+                                            この圃場を削除
+                                        </v-btn>
+                                    </v-col>
+                                </v-row>
+                            </v-card>
+                        </div>
+                    </v-col>
+                </v-row>
+            </v-main>
+
+            <!-- Create New Field Dialog -->
+            <v-dialog v-model="createDialog" max-width="450" persistent z-index="9999" style="z-index: 9999;">
+                <v-card>
+                    <v-card-title class="bg-primary text-white py-3">新規マップ要素の作成</v-card-title>
+                    <v-card-text class="pa-4">
+                        <div class="text-caption mb-4">
+                            新しい区画を作成します。名前と分類を選んで「図形を描く」を押すと、マップ上で頂点をクリックして多角形を作れるようになります。
+                        </div>
+                        <v-text-field v-model="newFieldForm.name" label="農地・施設名称" variant="outlined" density="compact"
+                            autofocus></v-text-field>
+                        <v-select v-model="newFieldForm.folder" :items="['耕作地', 'その他施設', '草刈り対応', '農業用ハウス', '駐車場']"
+                            label="分類 (レイヤー)" variant="outlined" density="compact" hide-details></v-select>
+                    </v-card-text>
+                    <v-card-actions class="pa-3">
+                        <v-spacer></v-spacer>
+                        <v-btn variant="text" @click="createDialog = false">キャンセル</v-btn>
+                        <v-btn color="primary" variant="flat" prepend-icon="mdi-draw"
+                            @click="confirmCreateStart">マップに図形を描く</v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
+
+            <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000">
+                {{ snackbar.text }}
+            </v-snackbar>
+        </v-app>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vuetify@3.4.0/dist/vuetify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+
+    <script>
+        const { createApp, ref, onMounted, nextTick, watch } = Vue;
+        const vuetify = Vuetify.createVuetify();
+
+        createApp({
+            setup() {
+                let lmapInstance = null;
+                let polygonDrawer = null;
+
+                const map = ref(null);
+                const fieldLayerGroup = ref(null);
+                const ridgeLayerGroup = ref(null);
+                const highlightLayerGroup = ref(null); // Shows selected field border
+                const heatmapLayerGroup = ref(null);
+
+                const allFields = ref([]);
+                const fieldDesigns = ref([]); // Store associated design configs
+                const visibleLayers = ref(['耕作地', 'その他施設', '草刈り対応', '農業用ハウス', '駐車場']);
+
+                const selectedFieldId = ref(null);
+                const selectedLayer = ref(null);
+                const currentPolygonJson = ref(null);
+                const currentLineStringJson = ref(null);
+
+                const isSaving = ref(false);
+                const isEditingShape = ref(false);
+                const isAnalyzingElevation = ref(false);
+                const calculatedRidges = ref([]);
+
+                const unsavedChanges = ref(false);
+                const snackbar = ref({ show: false, color: '', text: '' });
+
+                // Create Flow
+                const createDialog = ref(false);
+                const newFieldForm = ref({ name: '', folder: '耕作地' });
+
+                // Props for DB 
+                const fieldProps = ref({ id: null, name: '', folder: '' });
+
+                // Agricultural Design Parameters
+                const design = ref({
+                    ridgeWidth: 60,
+                    ridgeGap: 50,
+                    rowCount: 1,
+                    rowGap: 30, // currently unused but safe format
+                    plantSpacing: 35,
+                    ridgeAngle: null // manual override for angle
+                });
+
+                // Calculated Metrics
+                const metrics = ref({
+                    area: 0,
+                    perimeter: 0,
+                    estRidgeCount: 0,
+                    estPlantCount: 0,
+                    centroidElevation: null
+                });
+
+                // Parse standard "138.2,36.7,0 138.3,36.7,0" formats to standard arrays
+                const parseCoords = (coordStr, type) => {
+                    const parts = coordStr.trim().split(/[\s,]+/);
+                    const coords = [];
+                    for (let i = 0; i < parts.length; i += 3) {
+                        if (parts[i] && parts[i + 1]) {
+                            coords.push([parseFloat(parts[i]), parseFloat(parts[i + 1])]); // [lng, lat] expected by Turf
+                        }
+                    }
+                    if (type === 'Polygon' && coords.length > 0) {
+                        // Ensure closed polygon
+                        if (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1]) {
+                            coords.push(coords[0]);
+                        }
+                        return [coords];
+                    }
+                    return coords;
+                };
+
+                const initMap = async () => {
+                    const lmap = L.map('map-container').setView([36.73, 138.21], 15);
+                    L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+                        attribution: 'Google',
+                        maxZoom: 22
+                    }).addTo(lmap);
+
+                    map.value = lmap;
+                    lmapInstance = lmap;
+
+                    fieldLayerGroup.value = L.featureGroup().addTo(lmap);
+                    ridgeLayerGroup.value = L.featureGroup().addTo(lmap);
+                    highlightLayerGroup.value = L.featureGroup().addTo(lmap);
+                    heatmapLayerGroup.value = L.featureGroup().addTo(lmap);
+
+                    // Translate Draw Tooltips to Japanese
+                    L.drawLocal.draw.handlers.polygon.tooltip.start = '最初の点をクリックして描画を開始';
+                    L.drawLocal.draw.handlers.polygon.tooltip.cont = '次の点をクリックして描画を継続';
+                    L.drawLocal.draw.handlers.polygon.tooltip.end = '最初の点を再度クリックして図形を閉じる';
+
+                    L.drawLocal.draw.toolbar.actions.title = '描画をキャンセル';
+                    L.drawLocal.draw.toolbar.actions.text = 'キャンセル';
+                    L.drawLocal.draw.toolbar.finish.title = '描画を完了';
+                    L.drawLocal.draw.toolbar.finish.text = '完了';
+                    L.drawLocal.draw.toolbar.undo.title = '最後に描画したポイントを削除';
+                    L.drawLocal.draw.toolbar.undo.text = '最後のポイントを削除';
+
+                    // Initialize the programmable drawer
+                    polygonDrawer = new L.Draw.Polygon(lmapInstance, {
+                        allowIntersection: false,
+                        drawError: { color: '#e1e100', message: '<strong>交差しています!</strong>' },
+                        shapeOptions: { color: '#4caf50' }
+                    });
+
+                    // Draw Events
+                    map.value.on(L.Draw.Event.CREATED, (e) => {
+                        const layer = e.layer;
+                        // Give it the preconfigured name and folder from our UI dialog
+                        const newId = 'NEW_' + Date.now();
+                        layer.feature = {
+                            properties: {
+                                id: newId,
+                                isNew: true,
+                                name: newFieldForm.value.name,
+                                folder_name: newFieldForm.value.folder
+                            }
+                        };
+                        layer.on('click', () => { handleLayerClick(layer); });
+                        fieldLayerGroup.value.addLayer(layer);
+
+                        // Select it immediately
+                        handleLayerClick(layer);
+
+                        // Wait a tick for polygon binding, then auto save
+                        nextTick(() => {
+                            saveField();
+                        });
+                    });
+
+                    map.value.on(L.Draw.Event.EDITED, (e) => {
+                        e.layers.eachLayer(layer => {
+                            if (layer.feature && layer.feature.properties.id === selectedFieldId.value) {
+                                // If the currently selected layer was edited, recalc
+                                handleLayerClick(layer);
+                            }
+                        });
+                    });
+
+                    map.value.on(L.Draw.Event.DELETED, (e) => {
+                        // Check if deleted layer is the selected one
+                        e.layers.eachLayer(layer => {
+                            if (layer.feature && layer.feature.properties.id === selectedFieldId.value) {
+                                selectedFieldId.value = null;
+                            }
+                        });
+                    });
+
+                    map.value.on('zoomend', () => {
+                        updateZoomClass();
+                    });
+
+                    await loadData();
+                };
+
+                const updateZoomClass = () => {
+                    if (!map.value) return;
+                    const isZoomedOut = map.value.getZoom() <= 17;
+                    const container = map.value.getContainer();
+                    if (isZoomedOut) {
+                        container.classList.add('map-zoomed-out');
+                        container.classList.remove('map-zoomed-in');
+                    } else {
+                        container.classList.add('map-zoomed-in');
+                        container.classList.remove('map-zoomed-out');
+                    }
+                };
+
+                const loadData = async () => {
+                    try {
+                        const [fRes, dRes] = await Promise.all([
+                            fetch('/api/admin/data/fields'),
+                            fetch('/api/admin/data/field_designs')
+                        ]);
+
+                        const fData = await fRes.json();
+                        const dData = await dRes.json();
+
+                        allFields.value = fData.data || [];
+                        fieldDesigns.value = dData.data || [];
+
+                        renderFieldsOnMap(true); // Initial load fits bounds
+                    } catch (e) {
+                        snackbar.value = { show: true, color: 'error', text: 'データ取得失敗' };
+                    }
+                };
+
+                // Watch for layer visibility changes to trigger re-render
+                watch(visibleLayers, () => {
+                    renderFieldsOnMap(false); // Do not reset zoom when toggling checkboxes
+                }, { deep: true });
+
+                const renderFieldsOnMap = (shouldFitBounds = false) => {
+                    if (!map.value) return;
+
+                    fieldLayerGroup.value.clearLayers();
+                    const groups = {};
+
+                    allFields.value.forEach(f => {
+                        if (!visibleLayers.value.includes(f.folder_name)) return;
+
+                        if (f.geometry_type === 'Polygon' && f.polygon_coords) {
+                            const coords = parseCoords(f.polygon_coords, 'Polygon');
+                            if (!coords[0] || coords[0].length < 3) return;
+
+                            const latlngs = coords[0].map(c => [c[1], c[0]]);
+
+                            let color = '#4caf50';
+                            if (f.folder_name === '駐車場') color = '#9e9e9e';
+                            if (f.folder_name === 'その他施設') color = '#ff9800';
+                            if (f.folder_name === '草刈り対応') color = '#8bc34a';
+                            if (f.folder_name === '農業用ハウス') color = '#03a9f4';
+
+                            const poly = L.polygon(latlngs, {
+                                color: color,
+                                weight: 2,
+                                fillOpacity: 0.3,
+                                className: f.folder_name === '駐車場' ? 'layer-parking' : ''
+                            });
+
+                            poly.feature = { properties: f };
+
+                            let tooltipClass = 'text-caption';
+                            if (f.folder_name) {
+                                tooltipClass += ` tooltip-${f.folder_name}`;
+                            }
+
+                            poly.bindTooltip(f.name, {
+                                permanent: true,
+                                direction: 'center',
+                                className: `${tooltipClass} detail-label`
+                            });
+
+                            if (f.folder_name !== '駐車場') {
+                                const baseName = f.name ? f.name.replace(/[①-⑳0-9０-９A-Za-z\-_]+$/, '').trim() : '名称未設定';
+                                if (!groups[baseName]) {
+                                    groups[baseName] = {
+                                        folder_name: f.folder_name,
+                                        bounds: L.latLngBounds(),
+                                        totalArea: 0,
+                                        elevations: [],
+                                        tooltipClass: tooltipClass
+                                    };
+                                }
+
+                                groups[baseName].bounds.extend(poly.getBounds());
+                                if (f.area_total) groups[baseName].totalArea += parseFloat(f.area_total);
+                                if (f.rep_elev) groups[baseName].elevations.push(parseFloat(f.rep_elev));
+                            }
+
+                            poly.on('click', () => { handleLayerClick(poly); });
+                            fieldLayerGroup.value.addLayer(poly);
+                        }
+                    });
+
+                    Object.keys(groups).forEach(baseName => {
+                        const g = groups[baseName];
+                        if (!g.bounds.isValid()) return;
+
+                        const center = g.bounds.getCenter();
+                        const areaStr = Math.round(g.totalArea).toLocaleString() + ' ㎡';
+                        let elevStr = '未取得';
+
+                        if (g.elevations.length > 0) {
+                            const sum = g.elevations.reduce((a, b) => a + b, 0);
+                            elevStr = (sum / g.elevations.length).toFixed(1) + ' m';
+                        }
+
+                        const content = `
+                            <div style="text-align: center; line-height: 1.2;">
+                                <strong style="font-size: 1.1em;">${baseName}</strong><br>
+                                <span style="font-size: 0.85em; opacity: 0.9;">
+                                    面積: ${areaStr}<br>
+                                    標高: ${elevStr}
+                                </span>
+                            </div>
+                        `;
+
+                        L.tooltip({ permanent: true, direction: 'center', className: `${g.tooltipClass} group-label` })
+                            .setLatLng(center)
+                            .setContent(content)
+                            .addTo(fieldLayerGroup.value);
+                    });
+
+                    updateZoomClass();
+
+                    if (shouldFitBounds && fieldLayerGroup.value.getLayers().length > 0) {
+                        map.value.fitBounds(fieldLayerGroup.value.getBounds());
+                    }
+                };
+
+                const getElevationFromGSI = async (lon, lat) => {
+                    const url = `https://cyberjapandata2.gsi.go.jp/general/dem/scripts/getelevation.php?lon=${lon}&lat=${lat}&outtype=JSON`;
+                    try {
+                        const res = await fetch(url);
+                        const data = await res.json();
+                        if (data && data.elevation !== undefined && data.elevation !== '-----') {
+                            return parseFloat(data.elevation);
+                        }
+                    } catch (e) {
+                        console.warn("Elevation fetch error", e);
+                    }
+                    return null;
+                };
+
+                const handleLayerClick = async (layer) => {
+                    if (isSaving.value) return;
+
+                    // Cleanup previous edit state
+                    if (isEditingShape.value && selectedLayer.value) {
+                        selectedLayer.value.editing.disable();
+                        isEditingShape.value = false;
+                    }
+
+                    selectedLayer.value = layer;
+                    const field = layer.feature.properties;
+                    selectedFieldId.value = field.id;
+                    fieldProps.value = { id: field.id, name: field.name || '新規マップ要素', folder: field.folder_name || '耕作地' };
+
+                    // Normalise coordinates from Leaflet back to GeoJSON
+                    let geojsonCoords = layer.toGeoJSON().geometry.coordinates;
+                    if (layer.toGeoJSON().geometry.type === 'Polygon') {
+                        currentPolygonJson.value = turf.polygon(geojsonCoords);
+                    } else { return; }
+
+                    metrics.value.area = turf.area(currentPolygonJson.value);
+                    const lineStr = turf.polygonToLine(currentPolygonJson.value);
+                    metrics.value.perimeter = turf.length(lineStr, { units: 'meters' });
+
+                    // Highlight exactly which is selected
+                    highlightLayerGroup.value.clearLayers();
+                    const boundary = L.polygon(geojsonCoords[0].map(c => [c[1], c[0]]), {
+                        color: 'red',
+                        weight: 4,
+                        fillOpacity: 0
+                    }).addTo(highlightLayerGroup.value);
+
+                    map.value.panTo(boundary.getBounds().getCenter());
+
+                    // Reset states
+                    design.value.ridgeAngle = null;
+                    heatmapLayerGroup.value.clearLayers();
+                    metrics.value.centroidElevation = null;
+
+                    // Fetch Centroid Elevation right away
+                    try {
+                        const centroid = turf.centroid(currentPolygonJson.value).geometry.coordinates; // [lon, lat]
+                        const alt = await getElevationFromGSI(centroid[0], centroid[1]);
+                        metrics.value.centroidElevation = alt || 0;
+                    } catch (e) {
+                        console.warn("Failed to autofetch centroid altitude", e);
+                    }
+
+                    const existingDesign = fieldDesigns.value.find(d => d.name === fieldProps.value.name);
+                    if (existingDesign) {
+                        design.value.ridgeWidth = existingDesign.ridge_width || 60;
+                        design.value.ridgeGap = existingDesign.ridge_gap || 50;
+                        design.value.rowCount = existingDesign.row_count || 1;
+                        design.value.plantSpacing = existingDesign.plant_spacing || 35;
+                        if (existingDesign.ridge_angle !== undefined && existingDesign.ridge_angle !== null) {
+                            design.value.ridgeAngle = existingDesign.ridge_angle;
+                        }
+                    }
+
+                    // Look for corresponding LineString for Ridge Direction if no angle defined yet
+                    const directionData = allFields.value.find(f =>
+                        f.geometry_type === 'LineString' && f.name.includes(fieldProps.value.name)
+                    );
+
+                    if (directionData && directionData.polygon_coords) {
+                        const lCoords = parseCoords(directionData.polygon_coords, 'LineString');
+                        if (lCoords.length >= 2) {
+                            currentLineStringJson.value = turf.lineString(lCoords);
+                        } else {
+                            currentLineStringJson.value = null;
+                        }
+                    } else {
+                        currentLineStringJson.value = null;
+                    }
+
+                    nextTick(() => { calculateMetrics(); });
+                    unsavedChanges.value = false;
+                };
+
+                let autoSaveTimeout = null;
+                const handleAutoSave = () => {
+                    // Do not auto-save if a field hasn't been properly loaded
+                    if (!selectedFieldId.value && (!fieldProps.value.id || !fieldProps.value.id.toString().startsWith('NEW_'))) return;
+
+                    calculateMetrics();
+                    unsavedChanges.value = true;
+
+                    // Update polygon color immediately if folder changed
+                    if (selectedLayer.value && selectedLayer.value.setStyle) {
+                        let color = '#4caf50'; // green for crop fields
+                        if (fieldProps.value.folder === '駐車場') color = '#9e9e9e'; // grey
+                        if (fieldProps.value.folder === 'その他施設') color = '#ff9800'; // orange
+                        if (fieldProps.value.folder === '草刈り対応') color = '#8bc34a'; // light green
+                        if (fieldProps.value.folder === '農業用ハウス') color = '#03a9f4'; // light blue
+                        selectedLayer.value.setStyle({ color: color });
+                        selectedLayer.value.feature.properties.folder_name = fieldProps.value.folder;
+                    }
+
+                    if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+                    autoSaveTimeout = setTimeout(() => {
+                        saveField();
+                    }, 800);
+                };
+
+                // Watch form inputs deeply to trigger auto-save centrally
+                watch(fieldProps, (newVal, oldVal) => {
+                    if (newVal.id) {
+                        handleAutoSave();
+                    }
+                }, { deep: true });
+
+                watch(design, (newVal, oldVal) => {
+                    if (selectedFieldId.value) {
+                        handleAutoSave();
+                    }
+                }, { deep: true });
+
+                const calculateMetrics = () => {
+                    ridgeLayerGroup.value.clearLayers();
+                    heatmapLayerGroup.value.clearLayers();
+                    calculatedRidges.value = [];
+
+                    if (!currentPolygonJson.value || fieldProps.value.folder !== '耕作地') return;
+
+                    // Let UI know they tweaked numbers
+                    unsavedChanges.value = true;
+
+                    const pUnitW = (design.value.ridgeWidth + design.value.ridgeGap) / 100; // Total spacing needed per ridge (in meters)
+                    if (pUnitW <= 0) return;
+
+                    metrics.value.estRidgeCount = 0;
+                    metrics.value.estPlantCount = 0;
+
+                    let baseBearing = null;
+
+                    if (design.value.ridgeAngle !== null && design.value.ridgeAngle !== '') {
+                        baseBearing = parseFloat(design.value.ridgeAngle);
+                    } else if (currentLineStringJson.value) {
+                        const start = currentLineStringJson.value.geometry.coordinates[0];
+                        const end = currentLineStringJson.value.geometry.coordinates[currentLineStringJson.value.geometry.coordinates.length - 1];
+                        baseBearing = turf.bearing(start, end);
+                        design.value.ridgeAngle = Math.round(baseBearing * 10) / 10;
+                    } else {
+                        baseBearing = 0;
+                        design.value.ridgeAngle = 0;
+                    }
+
+                    // ADVANCED CALC: Ridge Direction Split
+
+                    // The perpendicular angle to traverse the width of the field
+                    const perpBearing = baseBearing + 90;
+
+                    // Calculate maximal spread of polygon
+                    const bbox = turf.bbox(currentPolygonJson.value);
+                    const maxDist = turf.distance([bbox[0], bbox[1]], [bbox[2], bbox[3]], { units: 'meters' });
+
+                    // Pick a starting point well outside the box, draw a long line perpendicular to it.
+                    let totalPlants = 0;
+                    let ridgeCount = 0;
+
+                    const center = turf.center(currentPolygonJson.value);
+                    // Start point outside the field along the perpendicular path
+                    let currentStepPt = turf.destination(center, maxDist / 1.5, perpBearing + 180, { units: 'meters' });
+
+                    // To reliably intersect complex polygons, Turf bounding operations aren't perfect, 
+                    // so we generate crossing lines (slicerLine) and find the intersection pieces.
+                    // We will step forward `pUnitW` at a time and draw lines across the bearing
+                    for (let d = 0; d < maxDist * 1.5; d += pUnitW) {
+                        // Move our base point forward along the perpendicular vector
+                        const point = turf.destination(currentStepPt, pUnitW, perpBearing, { units: 'meters' });
+                        currentStepPt = point;
+
+                        // Does this base point land roughly inside or near bounding box? (Optimization)
+                        // Draw long cutting line matching the original Ridge direction
+                        const p1 = turf.destination(point, maxDist, baseBearing, { units: 'meters' });
+                        const p2 = turf.destination(point, maxDist, baseBearing + 180, { units: 'meters' });
+                        const slicerLine = turf.lineString([p1.geometry.coordinates, p2.geometry.coordinates]);
+
+                        // Calculate intersection between Slicer and Polygon boundaries
+                        try {
+                            // lineIntersect returns points where line crosses polygon edges
+                            const intersections = turf.lineIntersect(slicerLine, currentPolygonJson.value);
+
+                            if (intersections.features.length >= 2) {
+                                // A complex polygon might cross 4 times forming 2 distinct lines (C-shape form)
+                                // In true agricultural modeling, we should segment the line.
+                                // We will sort points by distance along the slicer and take pairs.
+
+                                const pts = intersections.features.map(f => f.geometry.coordinates);
+                                pts.sort((a, b) => turf.distance(p1, turf.point(a)) - turf.distance(p1, turf.point(b)));
+
+                                // Pair up intersections: [0-1], [2-3], etc. (Entering and Exiting)
+                                for (let i = 0; i < pts.length - 1; i += 2) {
+                                    const entryPoint = pts[i];
+                                    const exitPoint = pts[i + 1];
+
+                                    // Optional: double check segment midpoint is inside polygon (handles concaves accurately)
+                                    const midPt = turf.midpoint(turf.point(entryPoint), turf.point(exitPoint));
+                                    if (turf.booleanPointInPolygon(midPt, currentPolygonJson.value)) {
+                                        const interiorCurve = turf.lineString([entryPoint, exitPoint]);
+                                        let len = Math.max(0, turf.length(interiorCurve, { units: 'meters' }) - 1.0); // Safety margin 1m from edges
+
+                                        if (len > 0) {
+                                            // Store calculated ridge data for analysis
+                                            calculatedRidges.value.push({
+                                                start: entryPoint,
+                                                end: exitPoint,
+                                                mid: midPt.geometry.coordinates,
+                                                length: len,
+                                                plants: 0 // placeholder
+                                            });
+
+                                            // Map Leaflet Lines
+                                            const latlngs = [[entryPoint[1], entryPoint[0]], [exitPoint[1], exitPoint[0]]];
+                                            L.polyline(latlngs, { color: 'rgba(76, 175, 80, 0.7)', weight: 3 }).addTo(ridgeLayerGroup.value);
+
+                                            // Count calculation
+                                            const plants = Math.floor(len / (design.value.plantSpacing / 100)) * design.value.rowCount;
+                                            totalPlants += plants;
+                                            ridgeCount++;
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (err) {
+                            console.warn("Intersection issue on one string", err);
+                        }
+                    }
+
+                    metrics.value.estRidgeCount = ridgeCount;
+                    metrics.value.estPlantCount = totalPlants;
+                };
+
+                const saveField = async () => {
+                    // Do not execute save if shape isn't drawn yet (e.g. initial edits on a NEW_ panel)
+                    if (!currentPolygonJson.value || !currentPolygonJson.value.geometry) {
+                        return;
+                    }
+
+                    isSaving.value = true;
+                    try {
+                        // 1. Convert GeoJSON back to custom string format for DB
+                        // Format: "138.21,36.73,0 138.22,36.73,0 ..."
+                        const ring = currentPolygonJson.value.geometry.coordinates[0];
+                        const coordsString = ring.map(c => `${c[0]},${c[1]},0`).join(' ');
+
+                        const isNewField = !fieldProps.value.id || fieldProps.value.id.toString().startsWith('NEW_');
+
+                        // DB Payload for `fields` Core Master
+                        const corePayload = {
+                            name: fieldProps.value.name,
+                            folder_name: fieldProps.value.folder,
+                            geometry_type: 'Polygon',
+                            polygon_coords: coordsString,
+                            area_total: metrics.value.area,
+                            perimeter: metrics.value.perimeter
+                        };
+
+                        let coreMethod = 'POST';
+                        if (!isNewField) {
+                            coreMethod = 'PUT';
+                            corePayload.id = fieldProps.value.id;
+                        }
+
+                        // Save Core Field Table
+                        const coreRes = await fetch('/api/admin/data/fields', {
+                            method: coreMethod,
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(corePayload)
+                        });
+                        const coreData = await coreRes.json();
+
+                        // Assign real DB ID if newly created
+                        if (isNewField && coreData.result && coreData.result.lastInsertRowid) {
+                            fieldProps.value.id = coreData.result.lastInsertRowid;
+                            selectedFieldId.value = fieldProps.value.id;
+                        }
+
+                        // 2. Save Design Logic Params for 耕作地
+                        if (fieldProps.value.folder === '耕作地') {
+                            const designPayload = {
+                                name: fieldProps.value.name,
+                                ridge_width: design.value.ridgeWidth,
+                                ridge_gap: design.value.ridgeGap,
+                                row_count: design.value.rowCount,
+                                row_gap: design.value.rowGap,
+                                plant_spacing: design.value.plantSpacing,
+                                ridge_angle: design.value.ridgeAngle,
+                                total_ridge_count: metrics.value.estRidgeCount,
+                                total_plant_count: metrics.value.estPlantCount
+                            };
+
+                            const existingDesign = fieldDesigns.value.find(d => d.name === fieldProps.value.name);
+                            let dMethod = 'POST';
+                            if (existingDesign && existingDesign.id) {
+                                dMethod = 'PUT';
+                                designPayload.id = existingDesign.id;
+                            }
+
+                            await fetch('/api/admin/data/field_designs', {
+                                method: dMethod,
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(designPayload)
+                            });
+                        }
+
+                        // Update the Leaflet Layer in-memory properties
+                        if (selectedLayer.value && selectedLayer.value.feature) {
+                            selectedLayer.value.feature.properties.id = fieldProps.value.id;
+                            selectedLayer.value.feature.properties.name = fieldProps.value.name;
+                            selectedLayer.value.feature.properties.folder_name = fieldProps.value.folder;
+                        }
+
+                        snackbar.value = { show: true, color: 'success', text: '空間データと設計を保存しました！' };
+                        unsavedChanges.value = false;
+
+                        // Background fetch to keep lists in sync and redraw groups
+                        const [fRes, dRes] = await Promise.all([
+                            fetch('/api/admin/data/fields'),
+                            fetch('/api/admin/data/field_designs')
+                        ]);
+                        const fData = await fRes.json();
+                        const dData = await dRes.json();
+                        allFields.value = fData.data || [];
+                        fieldDesigns.value = dData.data || [];
+
+                        renderFieldsOnMap(false);
+
+                        // Re-associate selectedLayer.value with the newly re-rendered polygon if applicable
+                        if (selectedFieldId.value) {
+                            fieldLayerGroup.value.eachLayer(l => {
+                                if (l.feature && l.feature.properties && l.feature.properties.id === selectedFieldId.value) {
+                                    selectedLayer.value = l;
+                                }
+                            });
+                        }
+                    } catch (e) {
+                        snackbar.value = { show: true, color: 'error', text: '通信ネットワーク障害: ' + e.message };
+                    } finally {
+                        isSaving.value = false;
+                    }
+                };
+
+                const getColorForElevation = (alt, minAlt, maxAlt) => {
+                    // Simple Heatmap Color Scale (Blue = Low, Green = Mid, Red = High)
+                    const range = maxAlt - minAlt;
+                    if (range === 0 || isNaN(alt)) return 'blue';
+                    const ratio = (alt - minAlt) / range;
+                    // HSL (240 is Blue, 0 is Red). We go from 240 to 0 based on ratio.
+                    const hue = (1.0 - ratio) * 240;
+                    return `hsl(${hue}, 100%, 50%)`;
+                };
+
+                const analyzeElevation = async () => {
+                    if (calculatedRidges.value.length === 0 || !currentPolygonJson.value) return;
+                    isAnalyzingElevation.value = true;
+                    heatmapLayerGroup.value.clearLayers();
+                    // We hide the simple green ridge layer while showing heatmap
+                    ridgeLayerGroup.value.clearLayers();
+
+                    try {
+                        console.log("Starting analyzeElevation for field:", fieldProps.value.name);
+                        console.log("calculatedRidges count:", calculatedRidges.value.length);
+
+                        // 1. Get Centroid Elevation
+                        const centroid = turf.centroid(currentPolygonJson.value).geometry.coordinates; // [lon, lat]
+                        console.log("Centroid coords:", centroid);
+                        metrics.value.centroidElevation = await getElevationFromGSI(centroid[0], centroid[1]) || 0;
+                        console.log("Centroid elevation result:", metrics.value.centroidElevation);
+
+                        // 2. Build batch points for all ridges (5 segments per ridge)
+                        // Because GSI has rate limits, we should do small batches or serial with minimal delay.
+                        // For a typical field, 20 ridges = 100 points. We'll parallelize in small chunks of 10.
+                        const fetchTasks = [];
+
+                        // Setup points
+                        calculatedRidges.value.forEach((r, idx) => {
+                            const p0 = r.start; // [lon, lat]
+                            const p100 = r.end;
+                            const p50 = r.mid;
+                            // interpolate 25% and 75%
+                            const p25 = [p0[0] * 0.75 + p100[0] * 0.25, p0[1] * 0.75 + p100[1] * 0.25];
+                            const p75 = [p0[0] * 0.25 + p100[0] * 0.75, p0[1] * 0.25 + p100[1] * 0.75];
+
+                            r.evalPoints = [p0, p25, p50, p75, p100];
+                            r.evalElevations = [0, 0, 0, 0, 0];
+
+                            // Schedule fetching
+                            r.evalPoints.forEach((pt, pIdx) => {
+                                fetchTasks.push(async () => {
+                                    // Make sure pt has valid coordinates
+                                    if (Array.isArray(pt) && pt.length >= 2) {
+                                        const alt = await getElevationFromGSI(pt[0], pt[1]);
+                                        if (alt !== null) {
+                                            r.evalElevations[pIdx] = alt;
+                                        } else {
+                                            r.evalElevations[pIdx] = metrics.value.centroidElevation; // Fallback
+                                        }
+                                    } else {
+                                        r.evalElevations[pIdx] = metrics.value.centroidElevation;
+                                    }
+                                });
+                            });
+                        });
+
+                        // Run fetches sequentially in chunks to avoid blocking/429 limits
+                        let completed = 0;
+                        const CHUNK_SIZE = 5;
+                        console.log(`Starting ${fetchTasks.length} elevation fetch tasks in batches of ${CHUNK_SIZE}`);
+                        for (let i = 0; i < fetchTasks.length; i += CHUNK_SIZE) {
+                            const chunk = fetchTasks.slice(i, i + CHUNK_SIZE);
+                            await Promise.all(chunk.map(f => f()));
+                            // minimal polite delay
+                            await new Promise(res => setTimeout(res, 250));
+                        }
+                        console.log("All fetch tasks completed");
+
+                        // 3. Find Min/Max to calibrate colors
+                        let minE = Infinity, maxE = -Infinity;
+                        calculatedRidges.value.forEach(r => {
+                            r.evalElevations.forEach(alt => {
+                                if (alt < minE) minE = alt;
+                                if (alt > maxE) maxE = alt;
+                            });
+                        });
+
+                        if (minE === Infinity) minE = 0;
+                        if (maxE === -Infinity) maxE = 0;
+
+                        // 4. Render Heatmap Line Segments
+                        calculatedRidges.value.forEach(r => {
+                            // Break the single line into 4 coloured segments connecting the 5 points
+                            for (let i = 0; i < 4; i++) {
+                                const ptA = r.evalPoints[i];
+                                const ptB = r.evalPoints[i + 1];
+                                const altA = r.evalElevations[i];
+                                const altB = r.evalElevations[i + 1];
+                                const avgAlt = (altA + altB) / 2;
+
+                                const color = getColorForElevation(avgAlt, minE, maxE);
+
+                                const latlngs = [[ptA[1], ptA[0]], [ptB[1], ptB[0]]];
+                                const polyTitle = `標高: 約 ${avgAlt.toFixed(2)}m (高低差: ${maxE - minE > 0 ? (maxE - minE).toFixed(2) : '0'}m)`;
+
+                                const segment = L.polyline(latlngs, {
+                                    color: color,
+                                    weight: 4,
+                                    opacity: 0.9
+                                }).bindTooltip(polyTitle);
+                                segment.addTo(heatmapLayerGroup.value);
+                            }
+                        });
+
+                        snackbar.value = { show: true, color: 'success', text: `ヒートマップの解析完了 (高低差: ${(maxE - minE).toFixed(1)}m)` };
+
+                    } catch (e) {
+                        console.error(e);
+                        snackbar.value = { show: true, color: 'error', text: '標高データの取得に失敗しました' };
+                    } finally {
+                        isAnalyzingElevation.value = false;
+                    }
+                };
+
+                const startCreateFlow = () => {
+                    newFieldForm.value.name = '';
+                    newFieldForm.value.folder = '耕作地';
+                    createDialog.value = true;
+                };
+
+                const confirmCreateStart = () => {
+                    if (!newFieldForm.value.name) {
+                        return alert("名称を入力してください");
+                    }
+                    createDialog.value = false;
+                    if (polygonDrawer) {
+                        polygonDrawer.enable();
+                        snackbar.value = { show: true, color: 'info', text: 'マップ上で図形を描画してください' };
+                    }
+                };
+
+                const toggleEditShape = () => {
+                    if (!selectedLayer.value) return;
+                    if (isEditingShape.value) {
+                        selectedLayer.value.editing.disable();
+                        isEditingShape.value = false;
+
+                        // Fake a re-click to fetch fresh geometry
+                        handleLayerClick(selectedLayer.value);
+                        // Trigger immediate save to calculate new areas and commit
+                        handleAutoSave();
+                        snackbar.value = { show: true, color: 'success', text: '形状を確定し、保存しました' };
+                    } else {
+                        selectedLayer.value.editing.enable();
+                        isEditingShape.value = true;
+                    }
+                };
+
+                const deleteShape = async () => {
+                    if (!confirm('この圃場（ポリゴン）を本当に削除しますか？\nシステムから完全に消去されます。')) return;
+
+                    // UI Context reset
+                    const idToDelete = fieldProps.value.id;
+                    const labelToDelete = fieldProps.value.name;
+
+                    if (selectedLayer.value) {
+                        fieldLayerGroup.value.removeLayer(selectedLayer.value);
+                    }
+
+                    selectedFieldId.value = null;
+                    selectedLayer.value = null;
+                    highlightLayerGroup.value.clearLayers();
+                    ridgeLayerGroup.value.clearLayers();
+                    heatmapLayerGroup.value.clearLayers();
+
+                    // If it's saved in the DB, hit the API
+                    if (idToDelete && !idToDelete.toString().startsWith('NEW_')) {
+                        try {
+                            await fetch(`/api/admin/data/fields?id=${idToDelete}`, {
+                                method: 'DELETE'
+                            });
+
+                            // Delete designs too if they exist
+                            const existingDesign = fieldDesigns.value.find(d => d.name === labelToDelete);
+                            if (existingDesign && existingDesign.id) {
+                                await fetch(`/api/admin/data/field_designs?id=${existingDesign.id}`, {
+                                    method: 'DELETE'
+                                });
+                            }
+                            snackbar.value = { show: true, color: 'success', text: '圃場を削除しました' };
+                        } catch (e) {
+                            console.error("Delete err:", e);
+                            snackbar.value = { show: true, color: 'error', text: 'DB削除に失敗しました' };
+                        }
+                    }
+                };
+
+                onMounted(() => {
+                    initMap();
+                });
+
+                return {
+                    fieldProps, design, metrics, selectedFieldId, currentLineStringJson,
+                    calculateMetrics, saveField, isSaving, unsavedChanges, snackbar,
+                    analyzeElevation, isAnalyzingElevation, calculatedRidges,
+                    createDialog, newFieldForm, startCreateFlow, confirmCreateStart,
+                    toggleEditShape, isEditingShape, deleteShape, handleAutoSave,
+                    visibleLayers, renderFieldsOnMap
+                }
+            }
+        }).use(vuetify).mount('#app');
+    </script>
+</body>
+
+</html>
