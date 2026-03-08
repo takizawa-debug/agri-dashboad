@@ -9,19 +9,34 @@ export async function onRequestPost(context) {
         }
 
         await env.DB.prepare(`
-            UPDATE tasks SET 
+            INSERT INTO tasks (
+                generated_task_id,
+                status,
+                actual_hours,
+                actual_material_qty,
+                worker_name,
+                memo,
+                crop_name,
+                major_category,
+                mid_category,
+                minor_category
+            ) VALUES (?, '完了', ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(generated_task_id) DO UPDATE SET
                 status = '完了',
-                actual_hours = ?,
-                actual_material_qty = ?,
-                worker_name = ?,
-                memo = ?
-            WHERE id = ?
+                actual_hours = excluded.actual_hours,
+                actual_material_qty = excluded.actual_material_qty,
+                worker_name = excluded.worker_name,
+                memo = excluded.memo
         `).bind(
-            payload.actualHours || null,
-            payload.actualMaterialQty || null,
+            taskId,
+            payload.actualHours !== undefined ? payload.actualHours : null,
+            payload.actualMaterialQty !== undefined ? payload.actualMaterialQty : null,
             payload.workerName || '',
             payload.memo || '',
-            taskId
+            payload.cropName || '',
+            payload.majorCat || '',
+            payload.midCat || '',
+            payload.minorCat || ''
         ).run();
 
         return Response.json({ success: true, message: '作業記録を保存しました' });

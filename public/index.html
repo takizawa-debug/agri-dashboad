@@ -602,6 +602,8 @@
                                                     <div class="task-tail"></div>
                                                     <!-- Fully legible overlaid text -->
                                                     <div class="task-text-overlay d-flex align-center px-2">
+                                                        <v-icon v-if="taskObj.data.status === '完了'" size="small"
+                                                            color="white" class="mr-1">mdi-check-circle</v-icon>
                                                         <span>{{ taskObj.data.minorCat }}</span>
                                                         <template
                                                             v-if="taskObj.isContinuous && taskObj.mergedCount > 1">
@@ -1006,7 +1008,7 @@
                     scheduleData.value.forEach(plan => {
                         plan.tasks.forEach(t => {
                             // Get tasks scheduled for today or earlier (overdue)
-                            if (t.targetDate <= todayStr) {
+                            if (t.targetDate <= todayStr && t.status !== '完了') {
                                 tasks.push({
                                     ...t,
                                     planId: plan.planId,
@@ -1101,6 +1103,25 @@
                     if (!task.baseWorkHours) return 0;
                     let scale = 1;
                     switch (task.unitKbn) {
+                        case '10aあたり':
+                        case '10a':
+                            scale = (plan.totalArea > 0 ? plan.totalArea : 1000) / 1000.0;
+                            break;
+                        case '100株あたり':
+                        case '株':
+                            scale = (plan.totalPlantingCount > 0 ? plan.totalPlantingCount : 100) / 100.0;
+                            if (task.unitKbn === '株') scale = scale * 100.0; // reverse to 1 plant
+                            break;
+                        case '畝':
+                            // approximate ridge count from mulch length (assume 2m lost per ridge padding, avg ridge maybe 10m? Just use straight mulch / 10m or totalPlantingCount / 10 if not available)
+                            // or use the fact that farmers know their fields. Let's just use mulchLength / 10m.
+                            scale = (plan.totalMulchLength > 0 ? plan.totalMulchLength / 10.0 : 1);
+                            break;
+                        case '1回あたり':
+                        case '回':
+                        case '全体':
+                            scale = 1;
+                            break;
                         case '耕作面積': scale = plan.totalArea || 1; break;
                         case '育苗トレイ': scale = Math.ceil((plan.totalSowingCount || 0) / 128) || 1; break;
                         case '外周長':
@@ -1111,12 +1132,18 @@
                         case '収穫量': scale = plan.totalHarvestYield || 1; break;
                         default: scale = 1;
                     }
+
+                    // Apply baseQty division (e.g. 1畝 => total ridges / 1, 2畝 => total ridges / 2)
+                    const bQty = task.baseQty && task.baseQty > 0 ? task.baseQty : 1;
+                    scale = scale / bQty;
+
                     const qty = task.targetQty || 1;
 
                     let baseHours = task.baseWorkHours;
-                    // 分・min表記の場合は時間(h)に換算する
                     if (task.workHourUnit && (task.workHourUnit.includes('分') || task.workHourUnit.toLowerCase().includes('min'))) {
                         baseHours = baseHours / 60.0;
+                    } else if (task.workHourUnit === '人日') {
+                        baseHours = baseHours * 8.0;
                     }
 
                     let hours = (scale / qty) * baseHours;
@@ -1919,10 +1946,10 @@
                 const openReportDialog = (task) => {
                     selectedTask.value = task;
                     reportForm.value = {
-                        actualHours: task.estimatedHours !== undefined ? task.estimatedHours : (task.baseWorkHours || 0),
-                        actualMaterialQty: task.materialQty || 0,
-                        workerName: localStorage.getItem('agri_worker_name') || '',
-                        memo: ''
+                        actualHours: task.actualHours !== null ? task.actualHours : (task.estimatedHours !== undefined ? task.estimatedHours : (task.baseWorkHours || 0)),
+                        actualMaterialQty: task.actualMaterialQty !== null ? task.actualMaterialQty : (task.materialQty || 0),
+                        workerName: task.workerName ? task.workerName : (localStorage.getItem('agri_worker_name') || ''),
+                        memo: task.memo || ''
                     };
                     reportDialog.value = true;
                 };
@@ -1967,10 +1994,12 @@
                             if (result.success) {
                                 reportDialog.value = false;
                                 snackbar.value = { show: true, color: 'success', message: result.message || '保存しました' };
-                                // Local removal from today's tasks
-                                scheduleData.value.forEach(p => {
-                                    p.tasks = p.tasks.filter(t => t.taskId !== selectedTask.value.taskId);
-                                });
+                                // Local status update
+                                selectedTask.value.status = '完了';
+                                selectedTask.value.actualHours = reportForm.value.actualHours;
+                                selectedTask.value.actualMaterialQty = reportForm.value.actualMaterialQty;
+                                selectedTask.value.workerName = reportForm.value.workerName;
+                                selectedTask.value.memo = reportForm.value.memo;
                             } else {
                                 snackbar.value = { show: true, color: 'error', message: result.error || '保存に失敗しました' };
                             }

@@ -39,6 +39,12 @@ export async function onRequest(context) {
 
         if (request.method === 'POST') {
             const body = await request.json();
+
+            if (table === 'varieties_master') {
+                const parts = [body.item_name, body.variety_name, body.crop_type].filter(p => typeof p === 'string' && p.trim() !== '');
+                body.auto_name = parts.join('_');
+            }
+
             const keys = Object.keys(body);
             const values = Object.values(body);
             const placeholders = keys.map(() => '?').join(', ');
@@ -55,6 +61,11 @@ export async function onRequest(context) {
             const { id, ...updateFields } = body;
 
             if (!id) return Response.json({ error: 'ID is required for update' }, { status: 400 });
+
+            if (table === 'varieties_master') {
+                const parts = [body.item_name, body.variety_name, body.crop_type].filter(p => typeof p === 'string' && p.trim() !== '');
+                updateFields.auto_name = parts.join('_');
+            }
 
             const keys = Object.keys(updateFields);
             const values = Object.values(updateFields);

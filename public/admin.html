@@ -41,69 +41,212 @@
                                     <v-spacer></v-spacer>
                                     <v-btn color="blue" variant="outlined" @click="openImportDialog(t.id)"
                                         class="mr-2">CSVインポート</v-btn>
-                                    <v-btn color="green" prepend-icon="mdi-plus"
-                                        @click="openCrudDialog(t.id, null)">新規作成</v-btn>
+                                    <v-btn v-if="!['season_plans', 'process_master'].includes(t.id)" color="green"
+                                        prepend-icon="mdi-plus" @click="openCrudDialog(t.id, null)">新規作成</v-btn>
                                 </v-card-title>
 
                                 <!-- Process Master Sub-Tabs -->
                                 <div v-if="t.id === 'process_master'">
-                                    <v-tabs v-model="processTab" bg-color="grey-lighten-4" color="blue-darken-3"
-                                        show-arrows density="compact">
-                                        <v-tab value="all">すべて</v-tab>
+                                    <v-tabs v-model="processTab" color="teal-darken-3" show-arrows density="compact">
                                         <v-tab v-for="variety in uniqueVarieties" :key="variety" :value="variety"
-                                            :color="cropColorMap[variety] || 'blue-darken-3'">
-                                            <v-icon start :color="cropColorMap[variety] || 'grey'">mdi-circle</v-icon>{{
-                                            variety }}
+                                            :class="'bg-' + (cropBaseColorMap[variety.split('_')[0]] || 'grey') + '-lighten-4'">
+                                            <span class="font-weight-bold">{{ variety }}</span>
                                         </v-tab>
                                     </v-tabs>
-                                    <v-data-table :headers="t.headers"
-                                        :items="processTab === 'all' ? (tableData[t.id] || []) : (tableData[t.id] || []).filter(i => i.variety_name === processTab)"
+                                    <v-data-table :headers="t.headers" :items="filteredProcessPlans"
                                         :items-per-page="-1" :loading="loading">
-                                        <template v-slot:item.actions="{ item }">
-                                            <v-icon size="small" class="me-2" color="blue"
-                                                @click="openCrudDialog(t.id, item)">mdi-pencil</v-icon>
-                                            <v-icon size="small" color="red"
-                                                @click="deleteRecord(t.id, item)">mdi-delete</v-icon>
+                                        <template v-slot:item.base_day_offset="{ item }">
+                                            <v-text-field v-model="item.base_day_offset" type="number"
+                                                variant="underlined" hide-details density="compact"
+                                                @change="saveInlineAction('process_master', item)"></v-text-field>
                                         </template>
-                                        <template v-slot:item.variety_name="{ item }">
-                                            <v-icon size="small" class="mr-1"
-                                                :color="cropColorMap[item.variety_name] || 'grey'">mdi-circle</v-icon>
-                                            {{ item.variety_name }}
+                                        <template v-slot:item.base_day_end_offset="{ item }">
+                                            <v-text-field v-model="item.base_day_end_offset" type="number"
+                                                variant="underlined" hide-details density="compact"
+                                                @change="saveInlineAction('process_master', item)"></v-text-field>
+                                        </template>
+                                        <template v-slot:item.repeat_interval="{ item }">
+                                            <v-text-field v-model="item.repeat_interval" type="number"
+                                                variant="underlined" hide-details density="compact"
+                                                @change="saveInlineAction('process_master', item)"></v-text-field>
+                                        </template>
+                                        <template v-slot:item.work_minor="{ item }">
+                                            <v-select v-model="item.work_minor" :items="workMinorListOptions"
+                                                variant="underlined" hide-details density="compact"
+                                                @update:model-value="saveInlineAction('process_master', item)"></v-select>
+                                        </template>
+                                        <template v-slot:item.work_details="{ item }">
+                                            <v-text-field v-model="item.work_details" variant="underlined" hide-details
+                                                density="compact"
+                                                @change="saveInlineAction('process_master', item)"></v-text-field>
+                                        </template>
+                                        <template v-slot:item.base_qty="{ item }">
+                                            <v-text-field v-model="item.base_qty" type="number" variant="underlined"
+                                                hide-details density="compact"
+                                                @change="saveInlineAction('process_master', item)"></v-text-field>
+                                        </template>
+                                        <template v-slot:item.unit_type="{ item }">
+                                            <v-select v-model="item.unit_type" :items="unitTypeOptions"
+                                                variant="underlined" hide-details density="compact"
+                                                @update:model-value="saveInlineAction('process_master', item)"
+                                                clearable></v-select>
+                                        </template>
+                                        <template v-slot:item.unit_value="{ item }">
+                                            <v-text-field v-model="item.unit_value" type="number" variant="underlined"
+                                                hide-details density="compact"
+                                                @change="saveInlineAction('process_master', item)"></v-text-field>
+                                        </template>
+                                        <template v-slot:item.unit_name="{ item }">
+                                            <v-select v-model="item.unit_name" :items="unitNameOptions"
+                                                variant="underlined" hide-details density="compact"
+                                                @update:model-value="saveInlineAction('process_master', item)"
+                                                clearable></v-select>
+                                        </template>
+                                        <template v-slot:item.material_name="{ item }">
+                                            <v-select v-model="item.material_name" :items="materialOptions"
+                                                variant="underlined" hide-details density="compact"
+                                                @update:model-value="saveInlineAction('process_master', item)"
+                                                clearable></v-select>
+                                        </template>
+                                        <template v-slot:item.equipment_name="{ item }">
+                                            <v-select v-model="item.equipment_name" :items="equipmentOptions"
+                                                variant="underlined" hide-details density="compact"
+                                                @update:model-value="saveInlineAction('process_master', item)"
+                                                clearable></v-select>
+                                        </template>
+                                        <template v-slot:item.actions="{ item }">
+                                            <template v-if="item">
+                                                <v-btn icon="mdi-delete" size="small" variant="text" color="red"
+                                                    @click="deleteRecord('process_master', item)"></v-btn>
+                                            </template>
+                                        </template>
+                                        <template v-slot:body.append>
+                                            <tr class="bg-grey-lighten-5">
+                                                <td>
+                                                    <v-text-field v-model="newProcessPlan.base_day_offset" type="number"
+                                                        variant="underlined" hide-details density="compact"
+                                                        placeholder="日目" @keydown.enter="addProcessPlan"></v-text-field>
+                                                </td>
+                                                <td>
+                                                    <v-text-field v-model="newProcessPlan.base_day_end_offset"
+                                                        type="number" variant="underlined" hide-details
+                                                        density="compact" placeholder="終了"
+                                                        @keydown.enter="addProcessPlan"></v-text-field>
+                                                </td>
+                                                <td>
+                                                    <v-text-field v-model="newProcessPlan.repeat_interval" type="number"
+                                                        variant="underlined" hide-details density="compact"
+                                                        placeholder="間隔(日)"></v-text-field>
+                                                </td>
+                                                <td>
+                                                    <v-select v-model="newProcessPlan.work_minor"
+                                                        :items="workMinorListOptions" variant="underlined" hide-details
+                                                        density="compact" placeholder="作業" clearable></v-select>
+                                                </td>
+                                                <td>
+                                                    <v-text-field v-model="newProcessPlan.work_details"
+                                                        variant="underlined" hide-details density="compact"
+                                                        placeholder="詳細"></v-text-field>
+                                                </td>
+                                                <td>
+                                                    <v-text-field v-model="newProcessPlan.base_qty" type="number"
+                                                        variant="underlined" hide-details density="compact"
+                                                        placeholder="基準値"></v-text-field>
+                                                </td>
+                                                <td>
+                                                    <v-select v-model="newProcessPlan.unit_type"
+                                                        :items="unitTypeOptions" variant="underlined" hide-details
+                                                        density="compact" placeholder="基準単位" clearable></v-select>
+                                                </td>
+                                                <td>
+                                                    <v-text-field v-model="newProcessPlan.unit_value" type="number"
+                                                        variant="underlined" hide-details density="compact"
+                                                        placeholder="数値"></v-text-field>
+                                                </td>
+                                                <td>
+                                                    <v-select v-model="newProcessPlan.unit_name"
+                                                        :items="unitNameOptions" variant="underlined" hide-details
+                                                        density="compact" placeholder="単位" clearable></v-select>
+                                                </td>
+                                                <td>
+                                                    <v-select v-model="newProcessPlan.material_name"
+                                                        :items="materialOptions" variant="underlined" hide-details
+                                                        density="compact" placeholder="資材" clearable></v-select>
+                                                </td>
+                                                <td>
+                                                    <v-select v-model="newProcessPlan.equipment_name"
+                                                        :items="equipmentOptions" variant="underlined" hide-details
+                                                        density="compact" placeholder="農機具" clearable></v-select>
+                                                </td>
+                                                <td>
+                                                    <v-btn size="small" color="blue" variant="text"
+                                                        prepend-icon="mdi-plus" @click="addProcessPlan"
+                                                        :disabled="!processTab">追加</v-btn>
+                                                </td>
+                                            </tr>
                                         </template>
                                     </v-data-table>
                                 </div>
 
                                 <div v-else-if="t.id === 'fields'">
                                     <!-- Fields Master Sub-Tabs -->
-                                    <div class="mb-3">
+                                    <div class="mb-3 d-flex align-center">
                                         <v-tabs v-model="fieldsTab" color="green-darken-1">
                                             <v-tab v-for="folder in uniqueFieldFolders" :key="folder" :value="folder">{{
                                                 folder }}</v-tab>
                                         </v-tabs>
+                                        <v-spacer></v-spacer>
+                                        <v-btn v-if="selectedFields.length > 0 && ['耕作地', '農業用ハウス'].includes(fieldsTab)"
+                                            color="blue-darken-2" variant="tonal" prepend-icon="mdi-pencil-box-multiple"
+                                            @click="openBulkEditDialog">
+                                            選択した {{ selectedFields.length }} 件を一括編集
+                                        </v-btn>
                                     </div>
                                     <v-data-table :headers="t.headers"
                                         :items="(tableData[t.id] || []).filter(i => i.folder_name === fieldsTab)"
                                         :items-per-page="-1" :loading="loading">
+                                        <template v-slot:header.custom_select>
+                                            <div v-if="['耕作地', '農業用ハウス'].includes(fieldsTab)"
+                                                class="d-flex justify-center">
+                                                <v-checkbox v-model="allFieldsSelected" hide-details density="compact"
+                                                    color="blue-darken-2" title="すべて選択"></v-checkbox>
+                                            </div>
+                                        </template>
+                                        <template v-slot:item.custom_select="{ item }">
+                                            <div v-if="['耕作地', '農業用ハウス'].includes(item.folder_name)"
+                                                class="d-flex justify-center">
+                                                <v-checkbox v-model="selectedFields" :value="item" hide-details
+                                                    density="compact" color="blue-darken-2"></v-checkbox>
+                                            </div>
+                                        </template>
                                         <template v-slot:item.area_total="{ item }">
                                             {{ item.area_total != null ? Math.round(item.area_total) : '' }}
                                         </template>
                                         <template v-slot:item.ridge_width="{ item }">
-                                            <span>{{ item.ridge_width || '---' }}</span>
+                                            <span v-if="['草刈り対応', 'その他施設', '駐車場'].includes(item.folder_name)">---</span>
+                                            <span v-else>{{ item.ridge_width || '---' }}</span>
                                         </template>
                                         <template v-slot:item.ridge_distance="{ item }">
-                                            <span>{{ item.ridge_distance || '---' }}</span>
+                                            <span v-if="['草刈り対応', 'その他施設', '駐車場'].includes(item.folder_name)">---</span>
+                                            <span v-else>{{ item.ridge_distance || '---' }}</span>
                                         </template>
                                         <template v-slot:item.number_of_rows="{ item }">
-                                            <span>{{ item.number_of_rows || '---' }}</span>
+                                            <span v-if="['草刈り対応', 'その他施設', '駐車場'].includes(item.folder_name)">---</span>
+                                            <span v-else>{{ item.number_of_rows || '---' }}</span>
                                         </template>
                                         <template v-slot:item.plant_distance="{ item }">
-                                            <span>{{ item.plant_distance || '---' }}</span>
+                                            <span v-if="['草刈り対応', 'その他施設', '駐車場'].includes(item.folder_name)">---</span>
+                                            <span v-else>{{ item.plant_distance || '---' }}</span>
                                         </template>
                                         <template v-slot:item.max_plantable="{ item }">
-                                            <strong>{{ item.max_plantable != null ? Math.round(item.max_plantable) : '' }}</strong>
+                                            <span v-if="['草刈り対応', 'その他施設', '駐車場'].includes(item.folder_name)">---</span>
+                                            <strong v-else>{{ item.max_plantable != null ?
+                                                Math.round(item.max_plantable) : '' }}</strong>
                                         </template>
                                         <template v-slot:item.actions="{ item }">
-                                            <v-btn icon="mdi-pencil" size="small" variant="text" color="blue" @click="openCrudDialog(t.id, item)" title="編集"></v-btn>
+                                            <v-btn v-if="!['草刈り対応', 'その他施設', '駐車場'].includes(item.folder_name)"
+                                                icon="mdi-pencil" size="small" variant="text" color="blue"
+                                                @click="openCrudDialog(t.id, item)" title="編集"></v-btn>
                                         </template>
                                     </v-data-table>
                                 </div>
@@ -465,79 +608,78 @@
 
                                 <div v-else-if="t.id === 'season_plans'">
                                     <!-- Season Plans Sub-Tabs -->
-                                    <v-tabs v-model="seasonPlanTab" bg-color="purple-lighten-5" color="purple-darken-3"
-                                        show-arrows density="compact">
-                                        <v-tab v-for="itemName in uniqueItemNames" :key="itemName" :value="itemName"
-                                            :color="cropColorMap[varietiesByItem[itemName]?.[0]?.auto_name] || 'purple-darken-3'">
-                                            <v-icon start
-                                                :color="cropColorMap[varietiesByItem[itemName]?.[0]?.auto_name] || 'grey'">mdi-circle</v-icon>{{
-                                            itemName }}
+                                    <v-tabs v-model="seasonPlanTab" color="teal-darken-3" show-arrows density="compact">
+                                        <v-tab v-for="tabName in uniqueSeasonPlanTabs" :key="tabName" :value="tabName"
+                                            :class="'bg-' + (cropBaseColorMap[tabName] || 'grey') + '-lighten-4'">
+                                            <span class="font-weight-bold">{{ tabName }}</span>
                                         </v-tab>
                                     </v-tabs>
 
                                     <div class="pa-4">
-                                        <v-table density="compact" class="border">
-                                            <thead class="bg-grey-lighten-4">
-                                                <tr>
-                                                    <th style="width: 30%">品種_作型</th>
-                                                    <th style="width: 25%">圃場 (耕作地)</th>
-                                                    <th style="width: 15%">定植本数</th>
-                                                    <th style="width: 15%">起算日</th>
-                                                    <th style="width: 15%">操作</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <!-- Existing rows for this item -->
-                                                <tr v-for="(item, index) in filteredSeasonPlans" :key="item.id">
-                                                    <td>
-                                                        <v-select v-model="item.variety_name"
-                                                            :items="varietiesByItem[seasonPlanTab] || []"
-                                                            item-title="auto_name" item-value="auto_name"
-                                                            variant="underlined" hide-details density="compact"
-                                                            @update:model-value="saveInlineAction('season_plans', item)"
-                                                            placeholder="(未選択)"></v-select>
-                                                    </td>
-                                                    <td>
-                                                        <v-select v-model="item.field_name" :items="arableFields"
-                                                            item-title="name" item-value="name" variant="underlined"
-                                                            hide-details density="compact"
-                                                            @update:model-value="saveInlineAction('season_plans', item)"
-                                                            placeholder="選択"></v-select>
-                                                    </td>
-                                                    <td class="text-center font-weight-bold text-grey-darken-2">
-                                                        {{ getFieldMaxPlantable(item.field_name) }}
-                                                    </td>
-                                                    <td>
-                                                        <v-text-field v-model="item.base_date" type="date"
-                                                            variant="underlined" hide-details density="compact"
-                                                            @change="saveInlineAction('season_plans', item)"></v-text-field>
-                                                    </td>
-                                                    <td>
-                                                        <v-btn icon="mdi-delete" size="small" variant="text" color="red"
-                                                            @click="deleteRecord('season_plans', item)"></v-btn>
-                                                        <v-btn size="x-small" color="purple-darken-1" variant="tonal"
-                                                            class="ml-1 px-1 font-weight-bold"
-                                                            @click="generateTasks(item)">展開</v-btn>
-                                                    </td>
-                                                </tr>
+                                        <v-data-table density="compact" class="border" :headers="[
+                                            { title: '品種_作型', key: 'variety_name', width: '25%' },
+                                            { title: '育苗場所', key: 'nursery_location', width: '20%' },
+                                            { title: '定植圃場', key: 'field_name', width: '20%' },
+                                            { title: '起算日', key: 'base_date', width: '15%' },
+                                            { title: '操作', key: 'actions', width: '20%', sortable: false }
+                                        ]" :items="filteredSeasonPlans" :items-per-page="-1" hide-default-footer>
 
-                                                <!-- Infinite add row -->
+                                            <template v-slot:item.variety_name="{ item }">
+                                                <v-select v-if="item" v-model="item.variety_name"
+                                                    :items="availableVarietiesForTab" variant="underlined" hide-details
+                                                    density="compact"
+                                                    @update:model-value="saveInlineAction('season_plans', item)"
+                                                    placeholder="品種_作型を選択"></v-select>
+                                            </template>
+
+                                            <template v-slot:item.nursery_location="{ item }">
+                                                <v-select v-if="item" v-model="item.nursery_location"
+                                                    :items="facilityFields" variant="underlined" hide-details
+                                                    density="compact"
+                                                    @update:model-value="saveInlineAction('season_plans', item)"
+                                                    placeholder="選択"></v-select>
+                                            </template>
+
+                                            <template v-slot:item.field_name="{ item }">
+                                                <v-select v-if="item" v-model="item.field_name" :items="arableFields"
+                                                    variant="underlined" hide-details density="compact"
+                                                    @update:model-value="saveInlineAction('season_plans', item)"
+                                                    placeholder="選択"></v-select>
+                                            </template>
+
+                                            <template v-slot:item.base_date="{ item }">
+                                                <v-text-field v-if="item" v-model="item.base_date" type="date"
+                                                    variant="underlined" hide-details density="compact"
+                                                    @change="saveInlineAction('season_plans', item)"></v-text-field>
+                                            </template>
+
+                                            <template v-slot:item.actions="{ item }">
+                                                <template v-if="item">
+                                                    <v-btn icon="mdi-delete" size="small" variant="text" color="red"
+                                                        @click="deleteRecord('season_plans', item)"></v-btn>
+                                                    <v-btn size="x-small" color="teal-darken-1" variant="tonal"
+                                                        class="ml-1 px-1 font-weight-bold"
+                                                        @click="generateTasks(item)">展開</v-btn>
+                                                </template>
+                                            </template>
+
+                                            <template v-slot:body.append>
                                                 <tr class="bg-grey-lighten-5">
-                                                    <td>
+                                                    <td class="font-weight-bold text-grey-darken-1">
                                                         <v-select v-model="newSeasonPlan.variety_name"
-                                                            :items="varietiesByItem[seasonPlanTab] || []"
-                                                            item-title="auto_name" item-value="auto_name"
-                                                            variant="underlined" hide-details density="compact"
-                                                            placeholder="新規追加 (品種_作型)"></v-select>
+                                                            :items="availableVarietiesForTab" variant="underlined"
+                                                            hide-details density="compact"
+                                                            placeholder="品種_作型を選択"></v-select>
+                                                    </td>
+                                                    <td>
+                                                        <v-select v-model="newSeasonPlan.nursery_location"
+                                                            :items="facilityFields" variant="underlined" hide-details
+                                                            density="compact" placeholder="育苗場所を選択"></v-select>
                                                     </td>
                                                     <td>
                                                         <v-select v-model="newSeasonPlan.field_name"
-                                                            :items="arableFields" item-title="name" item-value="name"
-                                                            variant="underlined" hide-details density="compact"
-                                                            placeholder="圃場を選択"></v-select>
-                                                    </td>
-                                                    <td class="text-center font-weight-bold text-grey-darken-2">
-                                                        {{ getFieldMaxPlantable(newSeasonPlan.field_name) }}
+                                                            :items="arableFields" variant="underlined" hide-details
+                                                            density="compact" placeholder="圃場を選択"></v-select>
                                                     </td>
                                                     <td>
                                                         <v-text-field v-model="newSeasonPlan.base_date" type="date"
@@ -547,11 +689,11 @@
                                                     <td>
                                                         <v-btn size="small" color="blue" variant="text"
                                                             prepend-icon="mdi-plus" @click="addSeasonPlan"
-                                                            :disabled="!newSeasonPlan.variety_name">追加</v-btn>
+                                                            :disabled="!seasonPlanTab">追加</v-btn>
                                                     </td>
                                                 </tr>
-                                            </tbody>
-                                        </v-table>
+                                            </template>
+                                        </v-data-table>
                                     </div>
                                 </div>
 
@@ -568,10 +710,10 @@
                                         </v-icon>
 
                                     </template>
-                                    <template v-slot:item.variety_name="{ item }">
+                                    <template v-slot:item.variety_name="{ item, value }">
                                         <v-icon size="small" class="mr-1"
-                                            :color="cropColorMap[item.variety_name] || 'grey'">mdi-circle</v-icon>{{
-                                        item.variety_name }}
+                                            :color="cropColorMap[value || item?.variety_name || item?.raw?.variety_name] || 'grey'">mdi-circle</v-icon>{{
+                                        value || item?.variety_name || item?.raw?.variety_name }}
                                     </template>
                                 </v-data-table>
                             </v-card>
@@ -585,15 +727,33 @@
                 <v-card>
                     <v-card-title class="text-h6 pb-2">CSVデータのインポート ({{ importType }})</v-card-title>
                     <v-card-text>
-                        <p class="mb-4 text-caption text-grey-darken-1">既存のデータは一度クリアされ、アップロードしたレコードで上書きされます。</p>
-                        <v-file-input v-model="csvFile" accept=".csv" label="CSVファイルを選択"
-                            prepend-icon="mdi-file-delimited" variant="outlined" density="compact"></v-file-input>
+                        <p class="mb-4 text-caption text-grey-darken-1">既存のデータは一度クリアされ、取り込んだレコードで上書きされます。</p>
+                        <v-tabs v-model="importTab" color="blue-darken-3" class="mb-4" density="compact">
+                            <v-tab value="file">CSVファイル</v-tab>
+                            <v-tab value="sheet">スプレッドシート（URL）</v-tab>
+                        </v-tabs>
+                        <v-window v-model="importTab">
+                            <v-window-item value="file">
+                                <v-file-input v-model="csvFile" accept=".csv" label="CSVファイルを選択"
+                                    prepend-icon="mdi-file-delimited" variant="outlined"
+                                    density="compact"></v-file-input>
+                            </v-window-item>
+                            <v-window-item value="sheet">
+                                <v-text-field v-model="sheetUrl" label="公開CSVのURLを貼り付け"
+                                    placeholder="https://docs.google.com/spreadsheets/.../pub?output=csv"
+                                    prepend-icon="mdi-google-spreadsheet" variant="outlined"
+                                    density="compact"></v-text-field>
+                                <p class="text-caption text-grey" style="line-height: 1.2;">※Googleスプレッドシートの「ファイル &gt;
+                                    共有 &gt; ウェブに公開」からフォーマットを「CSV」にして生成されたURLを入力してください。</p>
+                            </v-window-item>
+                        </v-window>
                     </v-card-text>
                     <v-card-actions>
                         <v-spacer></v-spacer>
                         <v-btn variant="text" @click="importDialog = false">キャンセル</v-btn>
-                        <v-btn color="blue-darken-3" :loading="isImporting" :disabled="!csvFile"
-                            @click="executeImport">インポート実行</v-btn>
+                        <v-btn color="blue-darken-3" :loading="isImporting"
+                            :disabled="(importTab==='file' && !csvFile) || (importTab==='sheet' && !sheetUrl)"
+                            @click="executeImport">取り込み実行</v-btn>
                     </v-card-actions>
                 </v-card>
             </v-dialog>
@@ -674,6 +834,42 @@
                 </v-card>
             </v-dialog>
 
+            <!-- Bulk Edit Dialog for Fields -->
+            <v-dialog v-model="bulkEditDialog.show" max-width="600">
+                <v-card>
+                    <v-card-title class="text-h6 pb-2">複数レコードの一括編集 ({{ selectedFields.length }}件)</v-card-title>
+                    <v-card-text>
+                        <v-container>
+                            <p class="mb-4 text-caption text-grey-darken-1">
+                                入力した項目のみ、選択されたすべてのレコードに上書き反映されます。変更しない項目は空欄のままにしてください。</p>
+                            <v-row>
+                                <v-col cols="12" sm="6">
+                                    <v-text-field v-model="bulkEditDialog.item.ridge_width" label="畝幅(cm) [未入力で据え置き]"
+                                        variant="outlined" density="comfortable" type="number"></v-text-field>
+                                </v-col>
+                                <v-col cols="12" sm="6">
+                                    <v-text-field v-model="bulkEditDialog.item.ridge_distance" label="畝間(cm) [未入力で据え置き]"
+                                        variant="outlined" density="comfortable" type="number"></v-text-field>
+                                </v-col>
+                                <v-col cols="12" sm="6">
+                                    <v-text-field v-model="bulkEditDialog.item.number_of_rows" label="条数 [未入力で据え置き]"
+                                        variant="outlined" density="comfortable" type="number"></v-text-field>
+                                </v-col>
+                                <v-col cols="12" sm="6">
+                                    <v-text-field v-model="bulkEditDialog.item.plant_distance" label="株間(cm) [未入力で据え置き]"
+                                        variant="outlined" density="comfortable" type="number"></v-text-field>
+                                </v-col>
+                            </v-row>
+                        </v-container>
+                    </v-card-text>
+                    <v-card-actions>
+                        <v-spacer></v-spacer>
+                        <v-btn variant="text" @click="bulkEditDialog.show = false">キャンセル</v-btn>
+                        <v-btn color="blue-darken-1" :loading="isSaving" @click="saveBulkFieldDesignAction">一括反映</v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
+
             <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000">
                 {{ snackbar.text }}
             </v-snackbar>
@@ -698,6 +894,8 @@
                 const snackbar = ref({ show: false, color: '', text: '' });
                 const inlineEditingId = ref(null);
                 const colorDialog = ref({ show: false, itemName: '', items: [], selectedColor: '' });
+                const selectedFields = ref([]);
+                const bulkEditDialog = ref({ show: false, item: {} });
 
                 const tableConfigs = [
                     {
@@ -722,7 +920,7 @@
                     },
                     {
                         id: 'season_plans', label: '時期計画マスタ', headers: [
-                            { title: 'ID', key: 'id' }, { title: '品目_品種_作型', key: 'variety_name' }, { title: '圃場', key: 'field_name' }, { title: '起算日', key: 'base_date' }, { title: '操作', key: 'actions', sortable: false }
+                            { title: 'ID', key: 'id' }, { title: '品目_品種_作型', key: 'variety_name' }, { title: '育苗場所', key: 'nursery_location' }, { title: '定植圃場', key: 'field_name' }, { title: '起算日', key: 'base_date' }, { title: '操作', key: 'actions', sortable: false }
                         ]
                     },
                     {
@@ -737,21 +935,24 @@
                             { title: '株間(cm)', key: 'plant_distance' },
                             { title: '定植可能（最大）', key: 'max_plantable' },
                             { title: '備考', key: 'notes' },
-                            { title: '操作', key: 'actions', sortable: false, width: '100px' }
+                            { title: '操作', key: 'actions', sortable: false, width: '80px' },
+                            { title: '一括', key: 'custom_select', sortable: false, width: '60px', align: 'center' }
                         ]
                     },
                     {
                         id: 'process_master', label: '工程マスタ', headers: [
-                            { title: 'ID', key: 'id' },
-                            { title: '品目_品種_作型', key: 'variety_name' },
-                            { title: '起算日', key: 'base_day_offset' },
-                            { title: '作業・大', key: 'work_major' },
-                            { title: '作業・中', key: 'work_mid' },
-                            { title: '作業・小', key: 'work_minor' },
+                            { title: '起算日', key: 'base_day_offset', width: '80px' },
+                            { title: '〜 終了日', key: 'base_day_end_offset', width: '80px' },
+                            { title: '間隔(日)', key: 'repeat_interval', width: '80px' },
+                            { title: '作業', key: 'work_minor', width: '150px' },
                             { title: '作業詳細', key: 'work_details' },
+                            { title: '基準値', key: 'base_qty', width: '80px' },
+                            { title: '基準単位', key: 'unit_type', width: '120px' },
+                            { title: '作業値', key: 'unit_value', width: '80px' },
+                            { title: '単位', key: 'unit_name', width: '100px' },
                             { title: '資材', key: 'material_name' },
                             { title: '農機具', key: 'equipment_name' },
-                            { title: '操作', key: 'actions', sortable: false }
+                            { title: '操作', key: 'actions', sortable: false, width: '60px' }
                         ]
                     },
                     {
@@ -792,46 +993,92 @@
 
                 // Computed property to extract unique variety_names for the process master tabs
                 const uniqueVarieties = Vue.computed(() => {
-                    // Extract from varieties_master so all known crops appear as tabs
-                    const varietiesLog = tableData.value['varieties_master'] || [];
-                    const names = new Set(varietiesLog.map(v => v.auto_name).filter(Boolean));
-                    return Array.from(names).sort();
+                    const vars = tableData.value['varieties_master'] || [];
+                    const orderedNames = [];
+                    const seen = new Set();
+                    vars.forEach(v => {
+                        if (v && v.auto_name && !seen.has(v.auto_name)) {
+                            seen.add(v.auto_name);
+                            orderedNames.push(v.auto_name);
+                        }
+                    });
+                    return orderedNames;
                 });
 
                 // Computed property to extract unique folder_names (categories) for the fields master tabs
 
                 const seasonPlanTab = ref(null);
-                const newSeasonPlan = ref({ variety_name: null, field_name: null, base_date: null });
+                const newSeasonPlan = ref({ variety_name: null, field_name: null, base_date: null, nursery_location: null });
 
-                const varietiesByItem = Vue.computed(() => {
-                    const list = tableData.value['varieties_master'] || [];
-                    const grouped = {};
-                    for (const v of list) {
-                        if (!v.item_name) continue;
-                        if (!grouped[v.item_name]) grouped[v.item_name] = [];
-                        grouped[v.item_name].push(v);
-                    }
-                    return grouped;
+                const newProcessPlan = ref({ base_day_offset: null, base_day_end_offset: null, repeat_interval: null, work_minor: null, work_details: null, base_qty: null, unit_type: null, unit_value: null, unit_name: null, material_name: null, equipment_name: null });
+
+                const unitTypeOptions = ['10aあたり', '100株あたり', '1回あたり', '全体', '畝', '10a'];
+                const unitNameOptions = ['時間', '分', '人日', '円'];
+
+                const workMinorListOptions = Vue.computed(() => [...new Set((tableData.value['work_master'] || []).map(w => w.minor_category).filter(Boolean))]);
+                const materialOptions = Vue.computed(() => [...new Set((tableData.value['material_master'] || []).map(m => m.product_name).filter(Boolean))]);
+                const equipmentOptions = Vue.computed(() => [...new Set((tableData.value['equipment_master'] || []).map(e => e.name).filter(Boolean))]);
+
+                const filteredProcessPlans = Vue.computed(() => {
+                    if (!processTab.value) return [];
+                    const data = tableData.value['process_master'] || [];
+                    return data.filter(i => i && i.variety_name === processTab.value).sort((a, b) => (Number(a.base_day_offset) || 0) - (Number(b.base_day_offset) || 0));
                 });
 
-                const uniqueItemNames = Vue.computed(() => {
-                    return Object.keys(varietiesByItem.value).sort();
+                const formatVarietySuffix = (name) => {
+                    if (!name) return '';
+                    const parts = name.split('_');
+                    if (parts.length > 1) return parts.slice(1).join('_');
+                    return name;
+                };
+
+                const uniqueSeasonPlanTabs = Vue.computed(() => {
+                    const vars = tableData.value['varieties_master'] || [];
+                    const orderedNames = [];
+                    const seen = new Set();
+
+                    vars.forEach(v => {
+                        if (v && v.auto_name) {
+                            const name = v.auto_name.split('_')[0];
+                            if (!seen.has(name)) {
+                                seen.add(name);
+                                orderedNames.push(name);
+                            }
+                        }
+                    });
+
+                    return orderedNames;
+                });
+
+                const availableVarietiesForTab = Vue.computed(() => {
+                    if (!seasonPlanTab.value) return [];
+                    const vars = tableData.value['varieties_master'] || [];
+                    const prefix = String(seasonPlanTab.value).trim() + '_';
+                    return vars.map(v => v.auto_name).filter(n => n && (n === seasonPlanTab.value || n.startsWith(prefix)))
+                        .map(n => ({ title: formatVarietySuffix(n), value: n }));
                 });
 
                 const arableFields = Vue.computed(() => {
-                    return (tableData.value['fields'] || []).filter(f => f.folder_name === '耕作地').sort((a, b) => a.name.localeCompare(b.name));
+                    return (tableData.value['fields'] || []).filter(f => ['耕作地', '農業用ハウス'].includes(f.folder_name)).sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(f => f.name);
+                });
+
+                const facilityFields = Vue.computed(() => {
+                    return (tableData.value['fields'] || []).filter(f => f.folder_name === '農業用ハウス').sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(f => f.name);
                 });
 
                 const filteredSeasonPlans = Vue.computed(() => {
                     const plans = tableData.value['season_plans'] || [];
                     if (!seasonPlanTab.value) return [];
-                    const validAutoNames = (varietiesByItem.value[seasonPlanTab.value] || []).map(v => String(v.auto_name).trim());
-                    // Fallback: if somehow empty, return all plans for this tab based on prefix maybe?
-                    return plans.filter(p => {
-                        if (!p.variety_name) return false;
-                        const vName = String(p.variety_name).trim();
-                        return validAutoNames.includes(vName) || vName.startsWith(seasonPlanTab.value + "_") || vName.replace(/_.*/, "") === seasonPlanTab.value;
+                    const prefix = String(seasonPlanTab.value).trim() + '_';
+                    // Filter matching plans
+                    let filtered = plans.filter(p => p && p.variety_name && (p.variety_name === seasonPlanTab.value || p.variety_name.startsWith(prefix)));
+                    // Sort by base_date ascending (closest dates first)
+                    filtered.sort((a, b) => {
+                        const dateA = a.base_date ? new Date(a.base_date).getTime() : 0;
+                        const dateB = b.base_date ? new Date(b.base_date).getTime() : 0;
+                        return dateA - dateB;
                     });
+                    return filtered;
                 });
 
                 const getFieldMaxPlantable = (fieldName) => {
@@ -841,7 +1088,11 @@
                 };
 
                 const addSeasonPlan = async () => {
-                    if (!newSeasonPlan.value.variety_name) return;
+                    if (!seasonPlanTab.value) return;
+                    if (!newSeasonPlan.value.variety_name) {
+                        snackbar.value = { show: true, color: 'warning', text: '品種・作型を選択してください' };
+                        return;
+                    }
                     isSaving.value = true;
                     try {
                         const item = { ...newSeasonPlan.value, id: Date.now().toString() };
@@ -853,7 +1104,7 @@
                         const data = await res.json();
                         if (data.success) {
                             snackbar.value = { show: true, color: 'success', text: '追加しました' };
-                            newSeasonPlan.value = { variety_name: null, field_name: null, base_date: null };
+                            newSeasonPlan.value = { variety_name: null, field_name: null, base_date: null, nursery_location: null };
                             loadData();
                         } else {
                             snackbar.value = { show: true, color: 'error', text: data.error || '追加に失敗しました' };
@@ -865,11 +1116,64 @@
                     }
                 };
 
-                Vue.watch(uniqueItemNames, (names) => {
-                    if (names && names.length > 0 && !seasonPlanTab.value) {
+                Vue.watch(uniqueSeasonPlanTabs, (names) => {
+                    if (names.length > 0 && !seasonPlanTab.value) {
                         seasonPlanTab.value = names[0];
                     }
                 }, { immediate: true });
+
+                Vue.watch(uniqueVarieties, (names) => {
+                    if (names.length > 0 && (!processTab.value || processTab.value === 'all')) {
+                        processTab.value = names[0];
+                    }
+                }, { immediate: true });
+
+                const addProcessPlan = async () => {
+                    if (!processTab.value) return;
+                    isSaving.value = true;
+                    try {
+                        const item = { ...newProcessPlan.value, variety_name: processTab.value, id: Date.now().toString() };
+                        const res = await fetch(`/api/admin/data/process_master`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(item)
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                            snackbar.value = { show: true, color: 'success', text: '追加しました' };
+                            newProcessPlan.value = { base_day_offset: null, base_day_end_offset: null, repeat_interval: null, work_minor: null, work_details: null, base_qty: null, unit_type: null, unit_value: null, unit_name: null, material_name: null, equipment_name: null };
+                            loadData();
+                        } else {
+                            snackbar.value = { show: true, color: 'error', text: data.error || '追加に失敗しました' };
+                        }
+                    } catch (e) {
+                        snackbar.value = { show: true, color: 'error', text: '通信エラーが発生しました' };
+                    } finally {
+                        isSaving.value = false;
+                    }
+                };
+
+                Vue.watch(fieldsTab, () => {
+                    selectedFields.value = []; // reset selection on tab change
+                });
+
+                const allFieldsSelected = Vue.computed({
+                    get() {
+                        const displayed = (tableData.value['fields'] || []).filter(i => i.folder_name === fieldsTab.value);
+                        return displayed.length > 0 && selectedFields.value.length === displayed.length;
+                    },
+                    set(val) {
+                        if (val) {
+                            selectedFields.value = [...(tableData.value['fields'] || []).filter(i => i.folder_name === fieldsTab.value)];
+                        } else {
+                            selectedFields.value = [];
+                        }
+                    }
+                });
+
+                Vue.watch(seasonPlanTab, () => {
+                    newSeasonPlan.value.variety_name = null;
+                });
 
                 const uniqueFieldFolders = Vue.computed(() => {
                     return ["耕作地", "農業用ハウス", "草刈り対応", "その他施設", "駐車場"];
@@ -888,6 +1192,19 @@
                     data.forEach(v => {
                         if (v.auto_name) {
                             map[v.auto_name] = v.color || 'grey';
+                        }
+                    });
+                    return map;
+                });
+
+                // Create a map of crop base name -> color for tabs
+                const cropBaseColorMap = Vue.computed(() => {
+                    const data = tableData.value['varieties_master'] || [];
+                    const map = {};
+                    data.forEach(v => {
+                        if (v.auto_name) {
+                            const baseName = v.auto_name.split('_')[0];
+                            if (!map[baseName]) map[baseName] = v.color || 'grey';
                         }
                     });
                     return map;
@@ -949,6 +1266,8 @@
                 const importType = ref('');
                 const csvFile = ref(null);
                 const isImporting = ref(false);
+                const importTab = ref('file');
+                const sheetUrl = ref('');
 
                 // Map UI tabs to backend import identifiers
                 const importMap = {
@@ -960,47 +1279,77 @@
                 const openImportDialog = (tableId) => {
                     importType.value = importMap[tableId] || tableId;
                     csvFile.value = null;
+                    importTab.value = 'file';
+                    sheetUrl.value = '';
                     importDialog.value = true;
                 };
 
-                const executeImport = () => {
-                    if (!csvFile.value) return;
+                const processParsedCsv = async function (results) {
+                    try {
+                        const payload = { type: importType.value, data: results.data };
+                        const res = await fetch('/api/admin/import', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        const responseData = await res.json();
 
-                    const file = Array.isArray(csvFile.value) ? csvFile.value[0] : csvFile.value;
-                    if (!file) return;
-
-                    isImporting.value = true;
-                    Papa.parse(file, {
-                        header: true,
-                        skipEmptyLines: true,
-                        complete: async function (results) {
-                            try {
-                                const payload = { type: importType.value, data: results.data };
-                                const res = await fetch('/api/admin/import', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify(payload)
-                                });
-                                const responseData = await res.json();
-
-                                if (responseData.success) {
-                                    snackbar.value = { show: true, color: 'success', text: responseData.message };
-                                    importDialog.value = false;
-                                    loadData(); // refresh table
-                                } else {
-                                    snackbar.value = { show: true, color: 'error', text: responseData.error || 'エラー発生' };
-                                }
-                            } catch (e) {
-                                snackbar.value = { show: true, color: 'error', text: '通信に失敗しました' };
-                            } finally {
-                                isImporting.value = false;
-                            }
-                        },
-                        error: function (err) {
-                            isImporting.value = false;
-                            snackbar.value = { show: true, color: 'error', text: 'CSV読み込みエラー' };
+                        if (responseData.success) {
+                            snackbar.value = { show: true, color: 'success', text: responseData.message };
+                            importDialog.value = false;
+                            loadData(); // refresh table
+                        } else {
+                            snackbar.value = { show: true, color: 'error', text: responseData.error || 'エラー発生' };
                         }
-                    });
+                    } catch (e) {
+                        snackbar.value = { show: true, color: 'error', text: '通信に失敗しました' };
+                    } finally {
+                        isImporting.value = false;
+                    }
+                };
+
+                const executeImport = () => {
+                    if (importTab.value === 'file') {
+                        if (!csvFile.value) return;
+
+                        const file = Array.isArray(csvFile.value) ? csvFile.value[0] : csvFile.value;
+                        if (!file) return;
+
+                        isImporting.value = true;
+                        Papa.parse(file, {
+                            header: true,
+                            skipEmptyLines: true,
+                            complete: processParsedCsv,
+                            error: function (err) {
+                                isImporting.value = false;
+                                snackbar.value = { show: true, color: 'error', text: 'CSV読み込みエラー' };
+                            }
+                        });
+                    } else if (importTab.value === 'sheet') {
+                        if (!sheetUrl.value) return;
+                        isImporting.value = true;
+
+                        fetch(sheetUrl.value)
+                            .then(res => {
+                                if (!res.ok) throw new Error('ネットワークエラー');
+                                return res.text();
+                            })
+                            .then(csvText => {
+                                Papa.parse(csvText, {
+                                    header: true,
+                                    skipEmptyLines: true,
+                                    complete: processParsedCsv,
+                                    error: function (err) {
+                                        isImporting.value = false;
+                                        snackbar.value = { show: true, color: 'error', text: 'CSVパースエラー' };
+                                    }
+                                });
+                            })
+                            .catch(err => {
+                                isImporting.value = false;
+                                snackbar.value = { show: true, color: 'error', text: 'URLからの読み込みに失敗しました' };
+                            });
+                    }
                 };
 
                 // --- CRUD Logic ---
@@ -1024,8 +1373,8 @@
                             { title: '作業・中', key: 'work_mid' },
                             { title: '作業・小', key: 'work_minor' },
                             { title: '作業詳細', key: 'work_details' },
-                            { title: '単位区分', key: 'unit_type' },
-                            { title: '単位値', key: 'unit_value' },
+                            { title: '基準単位', key: 'unit_type' },
+                            { title: '作業値', key: 'unit_value' },
                             { title: '単位名', key: 'unit_name' },
                             { title: '工数値', key: 'effort_value' },
                             { title: '工数単位', key: 'effort_unit' },
@@ -1163,6 +1512,51 @@
                         }
                     } catch (e) {
                         snackbar.value = { show: true, color: 'error', text: '通信設定エラー' };
+                    } finally {
+                        isSaving.value = false;
+                    }
+                };
+
+                const openBulkEditDialog = () => {
+                    bulkEditDialog.value.item = {
+                        ridge_width: '',
+                        ridge_distance: '',
+                        number_of_rows: '',
+                        plant_distance: ''
+                    };
+                    bulkEditDialog.value.show = true;
+                };
+
+                const saveBulkFieldDesignAction = async () => {
+                    if (selectedFields.value.length === 0) return;
+
+                    const updateData = {};
+                    ['ridge_width', 'ridge_distance', 'number_of_rows', 'plant_distance'].forEach(key => {
+                        if (bulkEditDialog.value.item[key] !== '' && bulkEditDialog.value.item[key] != null) {
+                            updateData[key] = bulkEditDialog.value.item[key];
+                        }
+                    });
+
+                    if (Object.keys(updateData).length === 0) {
+                        snackbar.value = { show: true, color: 'info', text: '編集内容がありません' };
+                        bulkEditDialog.value.show = false;
+                        return;
+                    }
+
+                    isSaving.value = true;
+                    try {
+                        await Promise.all(selectedFields.value.map(async (field) => {
+                            // Merge existing metrics with update
+                            const mergedItem = { ...field, ...updateData };
+                            await saveInlineFieldDesignAction(mergedItem); // Use existing single row update method mapped repeatedly
+                        }));
+
+                        snackbar.value = { show: true, color: 'success', text: `${selectedFields.value.length}件を一括更新しました` };
+                        bulkEditDialog.value.show = false;
+                        selectedFields.value = [];
+                        loadData();
+                    } catch (e) {
+                        snackbar.value = { show: true, color: 'error', text: '一括更新中にエラーが発生しました' };
                     } finally {
                         isSaving.value = false;
                     }
@@ -1308,12 +1702,13 @@
                 });
 
                 return {
-                    tab, processTab, fieldsTab, loading, tableData, snackbar, inlineEditingId, colorDialog, tableConfigs, loadData,
-                    uniqueVarieties, uniqueFieldFolders, colorPalette, cropColorMap, workMasterTree, materialMasterTree, equipmentMasterTree, varietiesMasterTree,
-                    importDialog, importType, csvFile, isImporting, openImportDialog, executeImport,
-                    crudDialog, isSaving, deleteDialog, openCrudDialog, saveRecord,
+                    tab, processTab, fieldsTab, loading, tableData, snackbar, inlineEditingId, colorDialog, tableConfigs, loadData, selectedFields, bulkEditDialog, allFieldsSelected,
+                    uniqueVarieties, uniqueFieldFolders, colorPalette, cropColorMap, cropBaseColorMap, workMasterTree, materialMasterTree, equipmentMasterTree, varietiesMasterTree,
+                    importDialog, importType, csvFile, isImporting, openImportDialog, executeImport, importTab, sheetUrl,
+                    crudDialog, isSaving, deleteDialog, openCrudDialog, saveRecord, openBulkEditDialog, saveBulkFieldDesignAction,
                     openColorDialog, saveItemColor, saveInlineFieldDesignAction, saveInlineAction, saveNewInlineAction, renameCategory, deleteRecord, confirmDeleteRecord,
-                    seasonPlanTab, newSeasonPlan, varietiesByItem, uniqueItemNames, arableFields, filteredSeasonPlans, getFieldMaxPlantable, addSeasonPlan
+                    seasonPlanTab, newSeasonPlan, uniqueSeasonPlanTabs, availableVarietiesForTab, formatVarietySuffix, arableFields, facilityFields, filteredSeasonPlans, getFieldMaxPlantable, addSeasonPlan,
+                    newProcessPlan, addProcessPlan, filteredProcessPlans, workMinorListOptions, unitTypeOptions, unitNameOptions, materialOptions, equipmentOptions
                 }
             }
         }).use(vuetify).mount('#app');
