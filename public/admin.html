@@ -73,8 +73,8 @@
                                     </v-data-table>
                                 </div>
 
-                                <!-- Fields Master Sub-Tabs -->
                                 <div v-else-if="t.id === 'fields'">
+                                    <!-- Fields Master Sub-Tabs -->
                                     <div class="mb-3">
                                         <v-tabs v-model="fieldsTab" color="green-darken-1">
                                             <v-tab v-for="folder in uniqueFieldFolders" :key="folder" :value="folder">{{
@@ -139,8 +139,8 @@
                                     </v-data-table>
                                 </div>
 
-                                <!-- Work Master Tree View -->
                                 <div v-else-if="t.id === 'work_master'" class="pa-4">
+                                    <!-- Work Master Tree View -->
                                     <div class="mb-3">
                                         <v-btn color="green-darken-1" size="small" prepend-icon="mdi-plus"
                                             @click="openCrudDialog('work_master', null)">大区分を新規追加</v-btn>
@@ -232,8 +232,8 @@
                                     </div>
                                 </div>
 
-                                <!-- Material Master Tree View -->
                                 <div v-else-if="t.id === 'material_master'" class="pa-4">
+                                    <!-- Material Master Tree View -->
                                     <div class="mb-3">
                                         <v-btn color="green-darken-1" size="small" prepend-icon="mdi-plus"
                                             @click="openCrudDialog('material_master', null)">大区分を新規追加</v-btn>
@@ -340,8 +340,8 @@
                                     </div>
                                 </div>
 
-                                <!-- Equipment Master Tree View -->
                                 <div v-else-if="t.id === 'equipment_master'" class="pa-4">
+                                    <!-- Equipment Master Tree View -->
                                     <div class="mb-3">
                                         <v-btn color="brown-darken-1" size="small" prepend-icon="mdi-plus"
                                             @click="openCrudDialog('equipment_master', null)">区分を新規追加</v-btn>
@@ -413,8 +413,8 @@
                                     </div>
 
                                 </div>
-                                <!-- Varieties Master Tree View -->
                                 <div v-else-if="t.id === 'varieties_master'" class="pa-4">
+                                    <!-- Varieties Master Tree View -->
                                     <div class="mb-3">
                                         <v-btn color="teal-darken-1" size="small" prepend-icon="mdi-plus"
                                             @click="openCrudDialog('varieties_master', null)">品目を新規追加</v-btn>
@@ -494,8 +494,8 @@
                                     </div>
                                 </div>
 
-                                <!-- Season Plans Sub-Tabs -->
                                 <div v-else-if="t.id === 'season_plans'">
+                                    <!-- Season Plans Sub-Tabs -->
                                     <v-tabs v-model="seasonPlanTab" bg-color="purple-lighten-5" color="purple-darken-3"
                                         show-arrows density="compact">
                                         <v-tab v-for="itemName in uniqueItemNames" :key="itemName" :value="itemName"
@@ -586,9 +586,9 @@
                                     </div>
                                 </div>
 
-                                <!-- Normal Tables -->
                                 <v-data-table v-else :headers="t.headers" :items="tableData[t.id]" :items-per-page="-1"
                                     :loading="loading">
+                                    <!-- Normal Tables -->
                                     <template v-slot:item.actions="{ item }">
                                         <v-icon size="small" class="me-2" color="blue"
                                             @click="openCrudDialog(t.id, item)">
