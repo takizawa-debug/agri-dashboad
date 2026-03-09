@@ -1790,7 +1790,8 @@
                 let calendarInstance = null;
 
                 const renderCalendar = () => {
-                    if (!calendarEl.value) return;
+                    const el = Array.isArray(calendarEl.value) ? calendarEl.value[0] : calendarEl.value;
+                    if (!el) return;
 
                     if (calendarInstance) {
                         calendarInstance.destroy();
@@ -1822,7 +1823,7 @@
                         });
                     });
 
-                    calendarInstance = new FullCalendar.Calendar(calendarEl.value, {
+                    calendarInstance = new FullCalendar.Calendar(el, {
                         initialView: 'dayGridMonth',
                         locale: 'ja',
                         events: events,
