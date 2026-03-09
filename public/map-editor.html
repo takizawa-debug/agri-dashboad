@@ -129,16 +129,7 @@
                         @update:modelValue="renderFieldsOnMap"></v-checkbox>
                 </div>
 
-                <div class="d-none d-md-flex align-center mr-4" style="width: 250px;">
-                    <v-text-field v-model="searchAddress" prepend-inner-icon="mdi-magnify" label="地番・住所検索"
-                        variant="solo" density="compact" hide-details @keydown.enter="searchLocation"
-                        class="bg-white rounded">
-                        <template v-slot:append-inner>
-                            <v-btn icon="mdi-magnify" size="small" variant="text" @click="searchLocation"
-                                color="primary"></v-btn>
-                        </template>
-                    </v-text-field>
-                </div>
+
 
                 <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="startCreateFlow">
                     新規作成
@@ -340,7 +331,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-    <script src="https://cdn.geolonia.com/community-geocoder.js"></script>
 
     <script>
         const { createApp, ref, onMounted, nextTick, watch } = Vue;
@@ -383,41 +373,7 @@
                 const createDialog = ref(false);
                 const newFieldForm = ref({ name: '', folder: '耕作地' });
 
-                // Location Search
-                const searchAddress = ref('');
-                let searchMarker = null;
 
-                const searchLocation = () => {
-                    const query = searchAddress.value.trim();
-                    if (!query) return;
-
-                    snackbar.value = { show: true, color: 'info', text: '検索中...' };
-
-                    if (typeof getLatLng === 'undefined') {
-                        snackbar.value = { show: true, color: 'error', text: '検索エンジンの読み込みに失敗しました' };
-                        return;
-                    }
-
-                    getLatLng(query, (latlng) => {
-                        const lat = latlng.lat;
-                        const lng = latlng.lng;
-
-                        // Geolonia returns level of accuracy (street, block, etc). 
-                        // If it's too low, we could warn, but for now we just show what we got.
-                        map.value.setView([lat, lng], 18);
-
-                        if (searchMarker) {
-                            searchMarker.setLatLng([lat, lng]);
-                        } else {
-                            searchMarker = L.marker([lat, lng]).addTo(map.value);
-                        }
-                        searchMarker.bindPopup(`<b>検索結果</b><br>${query}`).openPopup();
-                        snackbar.value.show = false; // Hide "検索中..."
-                    }, (err) => {
-                        console.error(err);
-                        snackbar.value = { show: true, color: 'error', text: '検索に失敗したか、見つかりませんでした。' };
-                    });
-                };
 
                 // Props for DB 
                 const fieldProps = ref({ id: null, name: '', folder: '' });
@@ -1319,8 +1275,7 @@
                     analyzeElevation, isAnalyzingElevation, calculatedRidges,
                     createDialog, newFieldForm, startCreateFlow, confirmCreateStart,
                     toggleEditShape, isEditingShape, deleteShape, handleAutoSave,
-                    visibleLayers, renderFieldsOnMap, isReadonly,
-                    searchAddress, searchLocation
+                    visibleLayers, renderFieldsOnMap, isReadonly
                 }
             }
         }).use(vuetify).mount('#app');
