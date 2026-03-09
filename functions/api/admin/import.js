@@ -61,7 +61,16 @@ export async function onRequestPost(context) {
 
         // Clear existing data for master tables to fully sync from spreadsheet
         // Be careful: foreign keys are not strictly enforced here, but this enables spreadsheet-driven workflow.
-        await db.prepare(`DELETE FROM ${tableName}`).run();
+        if (tableName === 'process_master') {
+            // For process_master, only clear the varieties being imported to avoid wiping other crops
+            const importedVarieties = [...new Set(data.map(row => row.variety_name || row['variety_name']).filter(Boolean))];
+            if (importedVarieties.length > 0) {
+                const placeholders = importedVarieties.map(() => '?').join(',');
+                await db.prepare(`DELETE FROM process_master WHERE variety_name IN (${placeholders})`).bind(...importedVarieties).run();
+            }
+        } else {
+            await db.prepare(`DELETE FROM ${tableName}`).run();
+        }
 
         const stmts = paramsList.map(params => db.prepare(query).bind(...params));
 

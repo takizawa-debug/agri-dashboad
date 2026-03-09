@@ -45,6 +45,11 @@ export async function onRequest(context) {
                 body.auto_name = parts.join('_');
             }
 
+            // Generate UUID if ID is missing (especially for tables with TEXT PRIMARY KEY)
+            if (!body.id) {
+                body.id = crypto.randomUUID();
+            }
+
             const keys = Object.keys(body);
             const values = Object.values(body);
             const placeholders = keys.map(() => '?').join(', ');

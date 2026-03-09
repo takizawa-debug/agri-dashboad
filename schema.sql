@@ -64,6 +64,7 @@ CREATE TABLE process_master (
     work_minor TEXT,
     work_details TEXT,
     base_qty REAL,
+    base_unit TEXT,
     unit_type TEXT,
     unit_value REAL,
     unit_name TEXT,

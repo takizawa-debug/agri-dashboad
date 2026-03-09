@@ -75,6 +75,7 @@ export async function onRequest(context) {
                         minorCat: proc.work_minor || '',
                         detail: proc.work_details || '',
                         baseQty: parseFloat(proc.base_qty) || 1,
+                        baseUnit: proc.base_unit || '',
                         unitKbn: proc.unit_type || '',
                         baseWorkHours: parseFloat(proc.unit_value) || 0,
                         workHourUnit: proc.unit_name || '',

@@ -1142,6 +1142,8 @@
                     let baseHours = task.baseWorkHours;
                     if (task.workHourUnit && (task.workHourUnit.includes('分') || task.workHourUnit.toLowerCase().includes('min'))) {
                         baseHours = baseHours / 60.0;
+                    } else if (task.workHourUnit === '秒' || (task.workHourUnit && task.workHourUnit.toLowerCase().includes('sec'))) {
+                        baseHours = baseHours / 3600.0;
                     } else if (task.workHourUnit === '人日') {
                         baseHours = baseHours * 8.0;
                     }
