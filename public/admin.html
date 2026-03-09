@@ -1134,7 +1134,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <script>
-        const { createApp, ref, onMounted } = Vue;
+        const { createApp, ref, onMounted, watch } = Vue;
         const vuetify = Vuetify.createVuetify();
 
         createApp({
@@ -1143,11 +1143,13 @@
                 const initialTab = urlParams.get('tab') || 'tasks';
                 const tab = ref(initialTab);
 
-                Vue.watch(tab, (newTab) => {
+                watch(tab, (newTab) => {
                     const url = new URL(window.location);
-                    url.searchParams.set('tab', newTab);
+                    if (newTab) {
+                        url.searchParams.set('tab', newTab);
+                    }
                     window.history.replaceState({}, '', url);
-                });
+                }, { immediate: true });
 
                 const processTab = ref('all');
                 const fieldsTab = ref('耕作地');

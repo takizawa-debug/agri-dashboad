@@ -390,7 +390,7 @@
                     const query = searchAddress.value.trim();
                     if (!query) return;
                     try {
-                        const res = await fetch(`https://msearch.gsi.go.jp/address/search?q=${encodeURIComponent(query)}`);
+                        const res = await fetch(`https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(query)}`);
                         if (!res.ok) throw new Error('API Error');
                         const data = await res.json();
                         if (data && data.length > 0) {
