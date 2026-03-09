@@ -699,6 +699,16 @@
                                                                     class="pa-0 ma-0" style="width: 60px;"
                                                                     @change="saveInlineAction('varieties_master', item)"></v-text-field>
                                                             </div>
+                                                            <div v-if="item.seed_ratio && parseFloat(item.seed_ratio) > 0"
+                                                                class="d-flex align-center mr-3">
+                                                                <span
+                                                                    class="text-caption text-grey-darken-1 mr-1">トレー穴数(粒):</span>
+                                                                <v-text-field v-model="item.seeds_per_tray"
+                                                                    type="number" variant="underlined" hide-details
+                                                                    density="compact" class="pa-0 ma-0"
+                                                                    style="width: 60px;"
+                                                                    @change="saveInlineAction('varieties_master', item)"></v-text-field>
+                                                            </div>
                                                             <div class="d-flex align-center mr-3">
                                                                 <span
                                                                     class="text-caption text-grey-darken-1 mr-1">収穫率(定植100):</span>
@@ -871,6 +881,9 @@
                                                             group.totalSow }}</strong>
                                                         <strong class="text-deep-orange" v-else>ー</strong> 粒
                                                     </span>
+                                                    <span v-if="group.hasSeedRatio">育苗トレー: <strong
+                                                            class="text-amber-darken-3">{{ group.totalNurseryTrays
+                                                            }}</strong> 枚</span>
                                                     <span>マルチ: <strong class="text-purple">{{ group.totalMulch
                                                             }}</strong> m</span>
                                                     <span>見込収穫: <strong class="text-green-darken-2">{{ group.totalYield
@@ -922,6 +935,17 @@
                                                                         </template>
                                                                         <template v-else>
                                                                             <strong class="text-deep-orange">ー</strong>
+                                                                        </template>
+                                                                    </v-col>
+                                                                    <v-col cols="6"><span
+                                                                            class="text-grey mr-1">育苗トレー数:</span>
+                                                                        <template v-if="summary.hasSeedRatio">
+                                                                            <strong class="text-amber-darken-3">{{
+                                                                                summary.nurseryTrays }}</strong> 枚
+                                                                        </template>
+                                                                        <template v-else>
+                                                                            <strong
+                                                                                class="text-amber-darken-3">ー</strong>
                                                                         </template>
                                                                     </v-col>
                                                                     <v-col cols="6"><span
@@ -1273,7 +1297,7 @@
                     },
                     {
                         id: 'varieties_master', label: '品目マスタ', headers: [
-                            { title: '品目', key: 'item_name' }, { title: '品種', key: 'variety_name' }, { title: '作型', key: 'crop_type' }, { title: '播種率(定植100)', key: 'seed_ratio' }, { title: '収穫率(定植100)', key: 'yield_ratio' }, { title: '単位', key: 'unit' }, { title: '操作', key: 'actions', sortable: false }
+                            { title: '品目', key: 'item_name' }, { title: '品種', key: 'variety_name' }, { title: '作型', key: 'crop_type' }, { title: '播種率(定植100)', key: 'seed_ratio' }, { title: 'トレー穴数', key: 'seeds_per_tray' }, { title: '収穫率(定植100)', key: 'yield_ratio' }, { title: '単位', key: 'unit' }, { title: '操作', key: 'actions', sortable: false }
                         ]
                     },
                     {
@@ -1795,6 +1819,8 @@
                         const rows = fMaster.number_of_rows ? parseInt(fMaster.number_of_rows) : 1;
 
                         const sowCount = Math.ceil(maxPlantable * (seedRatio / 100));
+                        const seedsPerTray = parseInt(vMaster.seeds_per_tray) || 0;
+                        const nurseryTrays = seedsPerTray > 0 ? Math.ceil(sowCount / seedsPerTray) : 0;
                         const yieldAmount = Math.ceil(maxPlantable * (yieldRatio / 100));
                         const mulchLength = Math.ceil((maxPlantable / (rows || 1)) * (plantDist / 100));
                         const fArea = parseFloat(fMaster.area_total || 0);
@@ -1810,6 +1836,7 @@
                                 totalArea: 0,
                                 hasSeedRatio,
                                 sowCount: 0,
+                                nurseryTrays: 0,
                                 yieldAmount: 0,
                                 yieldUnit: vMaster.unit || '',
                                 mulchLength: 0,
@@ -1845,6 +1872,7 @@
                         }
                         if (!isNaN(fArea)) innerGroups[groupKey].totalArea += fArea;
                         innerGroups[groupKey].sowCount += sowCount;
+                        innerGroups[groupKey].nurseryTrays += nurseryTrays;
                         innerGroups[groupKey].yieldAmount += yieldAmount;
                         innerGroups[groupKey].mulchLength += mulchLength;
                         innerGroups[groupKey].maxPlantable += maxPlantable;
@@ -1858,6 +1886,7 @@
                                 plans: [],
                                 totalPlantable: 0,
                                 totalSow: 0,
+                                totalNurseryTrays: 0,
                                 totalMulch: 0,
                                 totalYield: 0,
                                 yieldUnit: summary.yieldUnit,
@@ -1868,6 +1897,7 @@
                         g.plans.push(summary);
                         g.totalPlantable += summary.maxPlantable || 0;
                         g.totalSow += summary.sowCount || 0;
+                        g.totalNurseryTrays += summary.nurseryTrays || 0;
                         g.totalMulch += summary.mulchLength || 0;
                         g.totalYield += summary.yieldAmount || 0;
                         g.hasSeedRatio = g.hasSeedRatio || summary.hasSeedRatio;

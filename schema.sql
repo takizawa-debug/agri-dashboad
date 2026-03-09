@@ -36,7 +36,8 @@ CREATE TABLE varieties_master (
     yield_ratio REAL,
     unit TEXT,
     auto_name TEXT,
-    color TEXT
+    color TEXT,
+    seeds_per_tray INTEGER
 );
 
 CREATE TABLE season_plans (
