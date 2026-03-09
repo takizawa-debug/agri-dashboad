@@ -1791,6 +1791,7 @@
 
                 const renderCalendar = () => {
                     if (!calendarEl.value) return;
+
                     if (calendarInstance) {
                         calendarInstance.destroy();
                     }
@@ -1837,7 +1838,16 @@
                             week: '週'
                         }
                     });
+
+                    // Render initially, even if dimensions are 0
                     calendarInstance.render();
+
+                    // Force a resize after the Vuetify transition is likely complete
+                    setTimeout(() => {
+                        if (calendarInstance) {
+                            calendarInstance.updateSize();
+                        }
+                    }, 400);
                 };
 
 
@@ -1974,11 +1984,10 @@
 
                 Vue.watch([tab, aggregatedTaskSummaries], () => {
                     if (tab.value === 'tasks') {
-                        // Use setTimeout instead of nextTick to ensure Vuetify tab transition 
-                        // finishes and the container is fully visible before FullCalendar renders
+                        // Use setTimeout so DOM binds the ref properly
                         setTimeout(() => {
                             renderCalendar();
-                        }, 300);
+                        }, 100);
                     }
                 }, { immediate: true, deep: true });
 
