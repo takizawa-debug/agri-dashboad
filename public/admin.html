@@ -295,11 +295,16 @@
 
                                 <div v-else-if="t.id === 'fields'">
                                     <!-- Fields Master Sub-Tabs -->
-                                    <div class="mb-3 d-flex align-center">
+                                    <div class="mb-3 d-flex align-center flex-wrap gap-2">
                                         <v-tabs v-model="fieldsTab" color="green-darken-1">
                                             <v-tab v-for="folder in uniqueFieldFolders" :key="folder" :value="folder">{{
                                                 folder }}</v-tab>
                                         </v-tabs>
+
+                                        <v-select v-model="fieldsVarietyFilter" :items="uniqueFieldVarieties"
+                                            density="compact" hide-details variant="underlined"
+                                            style="max-width: 150px;" class="ml-4" label="作付品目フィルター"></v-select>
+
                                         <v-spacer></v-spacer>
                                         <v-btn v-if="selectedFields.length > 0 && ['耕作地', '農業用ハウス'].includes(fieldsTab)"
                                             color="blue-darken-2" variant="tonal" prepend-icon="mdi-pencil-box-multiple"
@@ -307,9 +312,11 @@
                                             選択した {{ selectedFields.length }} 件を一括編集
                                         </v-btn>
                                     </div>
-                                    <v-data-table :headers="t.headers"
-                                        :items="(tableData[t.id] || []).filter(i => i.folder_name === fieldsTab).map(i => ({...i, variety_indicator: fieldVarietyMap[i.name] ? fieldVarietyMap[i.name].itemName : ''}))"
-                                        :items-per-page="-1" :loading="loading" fixed-header
+                                    <v-data-table :headers="t.headers" :items="(tableData[t.id] || []).filter(i => i.folder_name === fieldsTab).map(i => ({...i, variety_indicator: fieldVarietyMap[i.name] ? fieldVarietyMap[i.name].itemName : ''})).filter(i => {
+                                            if (fieldsVarietyFilter === 'すべて') return true;
+                                            if (fieldsVarietyFilter === '未作付') return i.variety_indicator === '';
+                                            return i.variety_indicator === fieldsVarietyFilter;
+                                        })" :items-per-page="-1" :loading="loading" fixed-header
                                         height="calc(100vh - 250px)">
                                         <template v-slot:header.custom_select>
                                             <div v-if="['耕作地', '農業用ハウス'].includes(fieldsTab)"
@@ -1239,6 +1246,7 @@
 
                 const processTab = ref('all');
                 const fieldsTab = ref('耕作地');
+                const fieldsVarietyFilter = ref('すべて');
                 const loading = ref(false);
                 const tableData = ref({});
                 const snackbar = ref({ show: false, color: '', text: '' });
@@ -1731,6 +1739,14 @@
                         }
                     });
                     return map;
+                });
+
+                const uniqueFieldVarieties = Vue.computed(() => {
+                    const varieties = new Set();
+                    Object.values(fieldVarietyMap.value).forEach(v => {
+                        if (v && v.itemName) varieties.add(v.itemName);
+                    });
+                    return ['すべて', '未作付', ...Array.from(varieties).sort()];
                 });
 
                 const calendarEl = Vue.ref(null);
@@ -2383,7 +2399,7 @@
                     openColorDialog, saveItemColor, saveInlineFieldDesignAction, saveInlineAction, saveNewInlineAction, renameCategory, deleteRecord, confirmDeleteRecord,
                     seasonPlanTab, newSeasonPlan, uniqueSeasonPlanTabs, availableVarietiesForTab, formatVarietySuffix, arableFields, facilityFields, filteredSeasonPlans, getFieldMaxPlantable, addSeasonPlan,
                     newProcessPlan, addProcessPlan, insertProcessPlanRow, exportProcessMasterExcel, filteredProcessPlans, workMinorListOptions, unitTypeOptions, unitNameOptions, materialOptions, equipmentOptions,
-                    mapModal, openMapModal, calendarEl, fieldVarietyMap
+                    mapModal, openMapModal, calendarEl, fieldVarietyMap, fieldsVarietyFilter, uniqueFieldVarieties
                 }
             }
         }).use(vuetify).mount('#app');
