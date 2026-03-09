@@ -1759,13 +1759,7 @@
                     calendarInstance.render();
                 };
 
-                Vue.watch([tab, aggregatedTaskSummaries], () => {
-                    if (tab.value === 'tasks') {
-                        Vue.nextTick(() => {
-                            renderCalendar();
-                        });
-                    }
-                }, { immediate: true, deep: true });
+
 
                 // Compute aggregate info for tasks tab using season plans, fields, and process master
                 const aggregatedTaskSummaries = Vue.computed(() => {
@@ -1890,6 +1884,14 @@
 
                     return finalGroups;
                 });
+
+                Vue.watch([tab, aggregatedTaskSummaries], () => {
+                    if (tab.value === 'tasks') {
+                        Vue.nextTick(() => {
+                            renderCalendar();
+                        });
+                    }
+                }, { immediate: true, deep: true });
 
                 const openMapModal = (fieldNames) => {
                     if (!fieldNames || fieldNames.length === 0) return;
@@ -2340,16 +2342,14 @@
 
                 return {
                     tab, processTab, fieldsTab, loading, tableData, snackbar, inlineEditingId, colorDialog, tableConfigs, loadData, selectedFields, bulkEditDialog, allFieldsSelected,
-                    updateBulkCell, bulkInputValues, handleBulkUpdate, bulkSelectionEnabled, toggleBulkSelectionMode, closeBulkEdit, bulkUpdateAll, bulkUpdateValueRange,
-                    uniqueVarieties, uniqueFieldFolders, colorPalette, cropColorMap, cropBaseColorMap, workMasterTree, materialMasterTree,
-                    availableVarietiesForTab, equipmentMasterTree, varietiesMasterTree, aggregatedTaskSummaries, calendarEl, fieldVarietyMap,
-                    importDialog, importType, csvFile, isImporting, openImportDialog, generateTasks, saveInlineAction, uteImport, importTab, sheetUrl,
+                    uniqueVarieties, uniqueFieldFolders, colorPalette, cropColorMap, cropBaseColorMap, workMasterTree, materialMasterTree, equipmentMasterTree, varietiesMasterTree, aggregatedTaskSummaries,
+                    importDialog, importType, csvFile, isImporting, openImportDialog, executeImport, importTab, sheetUrl,
                     unitTypeOptions, baseUnitOptions, unitNameOptions,
                     crudDialog, isSaving, deleteDialog, openCrudDialog, saveRecord, openBulkEditDialog, saveBulkFieldDesignAction,
                     openColorDialog, saveItemColor, saveInlineFieldDesignAction, saveInlineAction, saveNewInlineAction, renameCategory, deleteRecord, confirmDeleteRecord,
                     seasonPlanTab, newSeasonPlan, uniqueSeasonPlanTabs, availableVarietiesForTab, formatVarietySuffix, arableFields, facilityFields, filteredSeasonPlans, getFieldMaxPlantable, addSeasonPlan,
                     newProcessPlan, addProcessPlan, insertProcessPlanRow, exportProcessMasterExcel, filteredProcessPlans, workMinorListOptions, unitTypeOptions, unitNameOptions, materialOptions, equipmentOptions,
-                    mapModal, openMapModal
+                    mapModal, openMapModal, calendarEl, fieldVarietyMap
                 }
             }
         }).use(vuetify).mount('#app');
