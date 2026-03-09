@@ -1974,9 +1974,11 @@
 
                 Vue.watch([tab, aggregatedTaskSummaries], () => {
                     if (tab.value === 'tasks') {
-                        Vue.nextTick(() => {
+                        // Use setTimeout instead of nextTick to ensure Vuetify tab transition 
+                        // finishes and the container is fully visible before FullCalendar renders
+                        setTimeout(() => {
                             renderCalendar();
-                        });
+                        }, 300);
                     }
                 }, { immediate: true, deep: true });
 
