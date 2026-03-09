@@ -308,7 +308,7 @@
                                         </v-btn>
                                     </div>
                                     <v-data-table :headers="t.headers"
-                                        :items="(tableData[t.id] || []).filter(i => i.folder_name === fieldsTab)"
+                                        :items="(tableData[t.id] || []).filter(i => i.folder_name === fieldsTab).map(i => ({...i, variety_indicator: fieldVarietyMap[i.name] ? fieldVarietyMap[i.name].itemName : ''}))"
                                         :items-per-page="-1" :loading="loading" fixed-header
                                         height="calc(100vh - 250px)">
                                         <template v-slot:header.custom_select>
@@ -328,13 +328,16 @@
                                         <template v-slot:item.name="{ item }">
                                             <div class="d-flex align-center">
                                                 <span>{{ item.name }}</span>
-                                                <template v-if="fieldVarietyMap[item.name]">
-                                                    <v-chip size="x-small" :color="fieldVarietyMap[item.name].color"
-                                                        class="ml-2 font-weight-bold" variant="flat">
-                                                        {{ fieldVarietyMap[item.name].itemName }}
-                                                    </v-chip>
-                                                </template>
                                             </div>
+                                        </template>
+                                        <template v-slot:item.variety_indicator="{ item }">
+                                            <template v-if="fieldVarietyMap[item.name]">
+                                                <v-chip size="small" :color="fieldVarietyMap[item.name].color"
+                                                    class="font-weight-bold" variant="flat">
+                                                    {{ fieldVarietyMap[item.name].itemName }}
+                                                </v-chip>
+                                            </template>
+                                            <span v-else class="text-grey text-caption">未作付</span>
                                         </template>
                                         <template v-slot:item.area_total="{ item }">
                                             {{ item.area_total != null ? Math.round(item.area_total) : '' }}
@@ -702,7 +705,7 @@
                                                             <div v-if="item.seed_ratio && parseFloat(item.seed_ratio) > 0"
                                                                 class="d-flex align-center mr-3">
                                                                 <span
-                                                                    class="text-caption text-grey-darken-1 mr-1">トレー穴数(粒):</span>
+                                                                    class="text-caption text-grey-darken-1 mr-1">トレー1枚あたりの播種数(粒):</span>
                                                                 <v-text-field v-model="item.seeds_per_tray"
                                                                     type="number" variant="underlined" hide-details
                                                                     density="compact" class="pa-0 ma-0"
@@ -1283,6 +1286,7 @@
                     {
                         id: 'fields', label: '圃場マスタ', headers: [
                             { title: '圃場・施設名', key: 'name' },
+                            { title: '作付品目', key: 'variety_indicator' },
                             { title: '面積(㎡)', key: 'area_total' },
                             { title: '標高(m)', key: 'rep_elev' },
                             { title: '畝幅(cm)', key: 'ridge_width' },
@@ -1297,7 +1301,7 @@
                     },
                     {
                         id: 'varieties_master', label: '品目マスタ', headers: [
-                            { title: '品目', key: 'item_name' }, { title: '品種', key: 'variety_name' }, { title: '作型', key: 'crop_type' }, { title: '播種率(定植100)', key: 'seed_ratio' }, { title: 'トレー穴数', key: 'seeds_per_tray' }, { title: '収穫率(定植100)', key: 'yield_ratio' }, { title: '単位', key: 'unit' }, { title: '操作', key: 'actions', sortable: false }
+                            { title: '品目', key: 'item_name' }, { title: '品種', key: 'variety_name' }, { title: '作型', key: 'crop_type' }, { title: '播種率(定植100)', key: 'seed_ratio' }, { title: 'トレー1枚あたりの播種数', key: 'seeds_per_tray' }, { title: '収穫率(定植100)', key: 'yield_ratio' }, { title: '単位', key: 'unit' }, { title: '操作', key: 'actions', sortable: false }
                         ]
                     },
                     {
