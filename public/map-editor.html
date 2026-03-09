@@ -340,6 +340,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script src="https://cdn.geolonia.com/community-geocoder.js"></script>
 
     <script>
         const { createApp, ref, onMounted, nextTick, watch } = Vue;
@@ -386,32 +387,36 @@
                 const searchAddress = ref('');
                 let searchMarker = null;
 
-                const searchLocation = async () => {
+                const searchLocation = () => {
                     const query = searchAddress.value.trim();
                     if (!query) return;
-                    try {
-                        const res = await fetch(`https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(query)}`);
-                        if (!res.ok) throw new Error('API Error');
-                        const data = await res.json();
-                        if (data && data.length > 0) {
-                            const coords = data[0].geometry.coordinates; // [lng, lat]
-                            const latlng = [coords[1], coords[0]];
 
-                            map.value.setView(latlng, 18);
+                    snackbar.value = { show: true, color: 'info', text: '検索中...' };
 
-                            if (searchMarker) {
-                                searchMarker.setLatLng(latlng);
-                            } else {
-                                searchMarker = L.marker(latlng).addTo(map.value);
-                            }
-                            searchMarker.bindPopup(`<b>${data[0].properties.title}</b>`).openPopup();
-                        } else {
-                            snackbar.value = { show: true, color: 'warning', text: '場所が見つかりませんでした' };
-                        }
-                    } catch (e) {
-                        console.error(e);
-                        snackbar.value = { show: true, color: 'error', text: '検索に失敗しました' };
+                    if (typeof getLatLng === 'undefined') {
+                        snackbar.value = { show: true, color: 'error', text: '検索エンジンの読み込みに失敗しました' };
+                        return;
                     }
+
+                    getLatLng(query, (latlng) => {
+                        const lat = latlng.lat;
+                        const lng = latlng.lng;
+
+                        // Geolonia returns level of accuracy (street, block, etc). 
+                        // If it's too low, we could warn, but for now we just show what we got.
+                        map.value.setView([lat, lng], 18);
+
+                        if (searchMarker) {
+                            searchMarker.setLatLng([lat, lng]);
+                        } else {
+                            searchMarker = L.marker([lat, lng]).addTo(map.value);
+                        }
+                        searchMarker.bindPopup(`<b>検索結果</b><br>${query}`).openPopup();
+                        snackbar.value.show = false; // Hide "検索中..."
+                    }, (err) => {
+                        console.error(err);
+                        snackbar.value = { show: true, color: 'error', text: '検索に失敗したか、見つかりませんでした。' };
+                    });
                 };
 
                 // Props for DB 
