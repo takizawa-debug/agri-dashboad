@@ -102,6 +102,12 @@
             background: #fafafa !important;
         }
 
+        /* Hide the dropdown arrow in process master table selects to save space and prevent text cutoff */
+        .process-master-table .v-field__append-inner .mdi-menu-down,
+        .process-master-table .v-select__menu-icon {
+            display: none !important;
+        }
+
         .expanded-item-row {
             background: #fdfdfd;
             box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
@@ -1268,11 +1274,11 @@
                             { title: '間隔(日)', key: 'repeat_interval', width: '60px', minWidth: '60px', maxWidth: '60px', sortable: false },
                             { title: '作業', key: 'work_minor', width: '150px', minWidth: '150px', sortable: false },
                             { title: '作業詳細', key: 'work_details', width: '200px', minWidth: '200px', sortable: false },
-                            { title: '基準区分', key: 'unit_type', width: '140px', minWidth: '140px', sortable: false },
-                            { title: '基準値', key: 'base_qty', width: '60px', minWidth: '60px', maxWidth: '60px', sortable: false },
-                            { title: '基準単位', key: 'base_unit', width: '70px', minWidth: '70px', maxWidth: '70px', sortable: false },
-                            { title: '作業値', key: 'unit_value', width: '60px', minWidth: '60px', maxWidth: '60px', sortable: false },
-                            { title: '作業単位', key: 'unit_name', width: '70px', minWidth: '70px', maxWidth: '70px', sortable: false },
+                            { title: '基準区分', key: 'unit_type', width: '160px', minWidth: '160px', sortable: false },
+                            { title: '基準値', key: 'base_qty', width: '70px', minWidth: '70px', maxWidth: '70px', sortable: false },
+                            { title: '基準単位', key: 'base_unit', width: '90px', minWidth: '90px', maxWidth: '90px', sortable: false },
+                            { title: '作業値', key: 'unit_value', width: '70px', minWidth: '70px', maxWidth: '70px', sortable: false },
+                            { title: '作業単位', key: 'unit_name', width: '90px', minWidth: '90px', maxWidth: '90px', sortable: false },
                             { title: '資材', key: 'material_name', width: '150px', minWidth: '150px', sortable: false },
                             { title: '農機具', key: 'equipment_name', width: '150px', minWidth: '150px', sortable: false },
                             { title: '操作', key: 'actions', sortable: false, width: '75px', minWidth: '75px', maxWidth: '75px', align: 'center' }
