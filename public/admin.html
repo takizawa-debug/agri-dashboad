@@ -325,6 +325,17 @@
                                                     density="compact" color="blue-darken-2"></v-checkbox>
                                             </div>
                                         </template>
+                                        <template v-slot:item.name="{ item }">
+                                            <div class="d-flex align-center">
+                                                <span>{{ item.name }}</span>
+                                                <template v-if="fieldVarietyMap[item.name]">
+                                                    <v-chip size="x-small" :color="fieldVarietyMap[item.name].color"
+                                                        class="ml-2 font-weight-bold" variant="flat">
+                                                        {{ fieldVarietyMap[item.name].itemName }}
+                                                    </v-chip>
+                                                </template>
+                                            </div>
+                                        </template>
                                         <template v-slot:item.area_total="{ item }">
                                             {{ item.area_total != null ? Math.round(item.area_total) : '' }}
                                         </template>
@@ -1680,6 +1691,20 @@
                     return tree;
                 });
 
+                // Compute mapped items for fields tab visual indicator
+                const fieldVarietyMap = Vue.computed(() => {
+                    const plans = tableData.value['season_plans'] || [];
+                    const map = {};
+                    plans.forEach(plan => {
+                        if (plan.field_name && plan.variety_name) {
+                            const baseName = plan.variety_name.split('_')[0];
+                            const clr = cropBaseColorMap.value[baseName] || 'grey';
+                            map[plan.field_name] = { itemName: baseName, color: clr };
+                        }
+                    });
+                    return map;
+                });
+
                 const calendarEl = Vue.ref(null);
                 let calendarInstance = null;
 
@@ -2315,14 +2340,16 @@
 
                 return {
                     tab, processTab, fieldsTab, loading, tableData, snackbar, inlineEditingId, colorDialog, tableConfigs, loadData, selectedFields, bulkEditDialog, allFieldsSelected,
-                    uniqueVarieties, uniqueFieldFolders, colorPalette, cropColorMap, cropBaseColorMap, workMasterTree, materialMasterTree, equipmentMasterTree, varietiesMasterTree, aggregatedTaskSummaries,
-                    importDialog, importType, csvFile, isImporting, openImportDialog, executeImport, importTab, sheetUrl,
+                    updateBulkCell, bulkInputValues, handleBulkUpdate, bulkSelectionEnabled, toggleBulkSelectionMode, closeBulkEdit, bulkUpdateAll, bulkUpdateValueRange,
+                    uniqueVarieties, uniqueFieldFolders, colorPalette, cropColorMap, cropBaseColorMap, workMasterTree, materialMasterTree,
+                    availableVarietiesForTab, equipmentMasterTree, varietiesMasterTree, aggregatedTaskSummaries, calendarEl, fieldVarietyMap,
+                    importDialog, importType, csvFile, isImporting, openImportDialog, generateTasks, saveInlineAction, uteImport, importTab, sheetUrl,
                     unitTypeOptions, baseUnitOptions, unitNameOptions,
                     crudDialog, isSaving, deleteDialog, openCrudDialog, saveRecord, openBulkEditDialog, saveBulkFieldDesignAction,
                     openColorDialog, saveItemColor, saveInlineFieldDesignAction, saveInlineAction, saveNewInlineAction, renameCategory, deleteRecord, confirmDeleteRecord,
                     seasonPlanTab, newSeasonPlan, uniqueSeasonPlanTabs, availableVarietiesForTab, formatVarietySuffix, arableFields, facilityFields, filteredSeasonPlans, getFieldMaxPlantable, addSeasonPlan,
                     newProcessPlan, addProcessPlan, insertProcessPlanRow, exportProcessMasterExcel, filteredProcessPlans, workMinorListOptions, unitTypeOptions, unitNameOptions, materialOptions, equipmentOptions,
-                    mapModal, openMapModal, calendarEl
+                    mapModal, openMapModal
                 }
             }
         }).use(vuetify).mount('#app');
