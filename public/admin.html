@@ -132,23 +132,25 @@
                                     <v-btn v-if="t.id === 'fields'" color="green-darken-2" variant="tonal" class="ml-4"
                                         prepend-icon="mdi-map-marker-path" href="map-editor.html">マップエディタで開く</v-btn>
                                     <v-spacer></v-spacer>
-                                    <v-btn v-if="t.id === 'process_master'" color="green" variant="outlined"
-                                        @click="exportProcessMasterExcel" prepend-icon="mdi-file-excel"
-                                        class="mr-2">Excelエクスポート</v-btn>
-                                    <v-btn color="blue" variant="outlined" @click="openImportDialog(t.id)"
-                                        class="mr-2">CSVインポート</v-btn>
                                     <v-btn v-if="!['season_plans', 'process_master'].includes(t.id)" color="green"
                                         prepend-icon="mdi-plus" @click="openCrudDialog(t.id, null)">新規作成</v-btn>
                                 </v-card-title>
 
                                 <!-- Process Master Sub-Tabs -->
                                 <div v-if="t.id === 'process_master'">
-                                    <v-tabs v-model="processTab" color="teal-darken-3" show-arrows density="compact">
-                                        <v-tab v-for="variety in uniqueVarieties" :key="variety" :value="variety"
-                                            :class="'bg-' + (cropBaseColorMap[variety.split('_')[0]] || 'grey') + '-lighten-4'">
-                                            <span class="font-weight-bold">{{ variety }}</span>
-                                        </v-tab>
-                                    </v-tabs>
+                                    <div class="d-flex align-center flex-wrap gap-2 mb-2">
+                                        <v-tabs v-model="processTab" color="teal-darken-3" show-arrows
+                                            density="compact">
+                                            <v-tab v-for="variety in uniqueVarieties" :key="variety" :value="variety"
+                                                :class="'bg-' + (cropBaseColorMap[variety.split('_')[0]] || 'grey') + '-lighten-4'">
+                                                <span class="font-weight-bold">{{ variety }}</span>
+                                            </v-tab>
+                                        </v-tabs>
+                                        <v-spacer></v-spacer>
+                                        <v-btn v-if="processTab && processTab !== 'all'" color="indigo" variant="tonal"
+                                            class="ml-2" prepend-icon="mdi-content-copy"
+                                            @click="copyProcessDialog.show = true">他の品目からインポート</v-btn>
+                                    </div>
                                     <v-data-table :headers="t.headers" :items="filteredProcessPlans"
                                         :items-per-page="-1" :loading="loading" class="process-master-table"
                                         fixed-header height="calc(100vh - 250px)">
@@ -1027,38 +1029,23 @@
                 </v-container>
             </v-main>
 
-            <!-- CSVインポートダイアログ -->
-            <v-dialog v-model="importDialog" max-width="500">
+            <!-- 他の品目から工程をインポート ダイアログ -->
+            <v-dialog v-model="copyProcessDialog.show" max-width="500">
                 <v-card>
-                    <v-card-title class="text-h6 pb-2">CSVデータのインポート ({{ importType }})</v-card-title>
+                    <v-card-title class="text-h6 pb-2">他の品目から工程をインポート</v-card-title>
                     <v-card-text>
-                        <p class="mb-4 text-caption text-grey-darken-1">既存のデータは一度クリアされ、取り込んだレコードで上書きされます。</p>
-                        <v-tabs v-model="importTab" color="blue-darken-3" class="mb-4" density="compact">
-                            <v-tab value="file">CSVファイル</v-tab>
-                            <v-tab value="sheet">スプレッドシート（URL）</v-tab>
-                        </v-tabs>
-                        <v-window v-model="importTab">
-                            <v-window-item value="file">
-                                <v-file-input v-model="csvFile" accept=".csv" label="CSVファイルを選択"
-                                    prepend-icon="mdi-file-delimited" variant="outlined"
-                                    density="compact"></v-file-input>
-                            </v-window-item>
-                            <v-window-item value="sheet">
-                                <v-text-field v-model="sheetUrl" label="公開CSVのURLを貼り付け"
-                                    placeholder="https://docs.google.com/spreadsheets/.../pub?output=csv"
-                                    prepend-icon="mdi-google-spreadsheet" variant="outlined"
-                                    density="compact"></v-text-field>
-                                <p class="text-caption text-grey" style="line-height: 1.2;">※Googleスプレッドシートの「ファイル &gt;
-                                    共有 &gt; ウェブに公開」からフォーマットを「CSV」にして生成されたURLを入力してください。</p>
-                            </v-window-item>
-                        </v-window>
+                        現在選択されている品目（<span class="font-weight-bold">{{ processTab
+                            }}</span>）に、以下の品目の全工程をコピー（インポート）します。<br>
+                        <strong>※既存の工程はすべて削除（上書き）されます。</strong>
+                        <v-select class="mt-4" v-model="copyProcessDialog.sourceVariety"
+                            :items="uniqueVarieties.filter(v => v !== processTab)" label="インポート元の品目を選択"
+                            variant="outlined" density="compact"></v-select>
                     </v-card-text>
                     <v-card-actions>
                         <v-spacer></v-spacer>
-                        <v-btn variant="text" @click="importDialog = false">キャンセル</v-btn>
-                        <v-btn color="blue-darken-3" :loading="isImporting"
-                            :disabled="(importTab==='file' && !csvFile) || (importTab==='sheet' && !sheetUrl)"
-                            @click="executeImport">取り込み実行</v-btn>
+                        <v-btn variant="text" @click="copyProcessDialog.show = false">キャンセル</v-btn>
+                        <v-btn color="indigo" :disabled="!copyProcessDialog.sourceVariety"
+                            :loading="copyProcessDialog.loading" @click="executeCopyProcess">実行</v-btn>
                     </v-card-actions>
                 </v-card>
             </v-dialog>
@@ -1541,81 +1528,6 @@
                     }
                 };
 
-                const exportProcessMasterExcel = async () => {
-                    if (!processTab.value || !filteredProcessPlans.value || filteredProcessPlans.value.length === 0) {
-                        snackbar.value = { show: true, color: 'error', text: '出力するデータがありません' };
-                        return;
-                    }
-                    isSaving.value = true;
-                    try {
-                        const workbook = new ExcelJS.Workbook();
-                        const sheet = workbook.addWorksheet('process_master');
-
-                        const columns = [
-                            { header: 'id', key: 'id', width: 10 },
-                            { header: 'variety_name', key: 'variety_name', width: 25 },
-                            { header: 'base_day_offset', key: 'base_day_offset', width: 15 },
-                            { header: 'timing_type', key: 'timing_type', width: 15 },
-                            { header: 'base_day_end_offset', key: 'base_day_end_offset', width: 15 },
-                            { header: 'repeat_interval', key: 'repeat_interval', width: 15 },
-                            { header: 'work_minor', key: 'work_minor', width: 25 },
-                            { header: 'work_details', key: 'work_details', width: 25 },
-                            { header: 'unit_type', key: 'unit_type', width: 15 },
-                            { header: 'base_qty', key: 'base_qty', width: 10 },
-                            { header: 'base_unit', key: 'base_unit', width: 10 },
-                            { header: 'unit_value', key: 'unit_value', width: 10 },
-                            { header: 'unit_name', key: 'unit_name', width: 10 },
-                            { header: 'material_name', key: 'material_name', width: 20 },
-                            { header: 'equipment_name', key: 'equipment_name', width: 20 },
-                            { header: 'notes', key: 'notes', width: 20 }
-                        ];
-
-                        sheet.columns = columns;
-
-                        filteredProcessPlans.value.forEach(row => {
-                            sheet.addRow(row);
-                        });
-
-                        const dropSheet = workbook.addWorksheet('Dropdowns', { state: 'hidden' });
-                        const works = workMinorListOptions.value.map(o => o.title || o);
-                        const unitTypes = unitTypeOptions.map(o => o.title || o);
-                        const baseUnits = baseUnitOptions.map(o => o.title || o);
-                        const unitNames = unitNameOptions.map(o => o.title || o);
-                        const mats = materialOptions.value.map(o => o.title || o);
-                        const equips = equipmentOptions.value.map(o => o.title || o);
-
-                        works.forEach((opt, idx) => dropSheet.getCell(`A${idx + 1}`).value = opt);
-                        unitTypes.forEach((opt, idx) => dropSheet.getCell(`B${idx + 1}`).value = opt);
-                        baseUnits.forEach((opt, idx) => dropSheet.getCell(`C${idx + 1}`).value = opt);
-                        unitNames.forEach((opt, idx) => dropSheet.getCell(`D${idx + 1}`).value = opt);
-                        mats.forEach((opt, idx) => dropSheet.getCell(`E${idx + 1}`).value = opt);
-                        equips.forEach((opt, idx) => dropSheet.getCell(`F${idx + 1}`).value = opt);
-
-                        const rowCount = filteredProcessPlans.value.length + 100;
-                        for (let i = 2; i <= rowCount; i++) {
-                            if (works.length > 0)
-                                sheet.getCell(`G${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`Dropdowns!$A$1:$A$${works.length}`] };
-                            if (unitTypes.length > 0)
-                                sheet.getCell(`I${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`Dropdowns!$B$1:$B$${unitTypes.length}`] };
-                            if (baseUnits.length > 0)
-                                sheet.getCell(`K${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`Dropdowns!$C$1:$C$${baseUnits.length}`] };
-                            if (unitNames.length > 0)
-                                sheet.getCell(`M${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`Dropdowns!$D$1:$D$${unitNames.length}`] };
-                            if (mats.length > 0)
-                                sheet.getCell(`N${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`Dropdowns!$E$1:$E$${mats.length}`] };
-                            if (equips.length > 0)
-                                sheet.getCell(`O${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`Dropdowns!$F$1:$F$${equips.length}`] };
-                        }
-
-                        const buffer = await workbook.xlsx.writeBuffer();
-                        saveAs(new Blob([buffer]), `process_master_${processTab.value}.xlsx`);
-                    } catch (e) {
-                        console.error(e);
-                        snackbar.value = { show: true, color: 'error', text: 'Excel出力に失敗しました' };
-                    } finally {
-                        isSaving.value = false;
-                    }
-                };
 
 
                 Vue.watch(fieldsTab, () => {
@@ -1949,93 +1861,37 @@
                     mapModal.value.show = true;
                 };
 
-                const importDialog = ref(false);
-                const importType = ref('');
-                const csvFile = ref(null);
-                const isImporting = ref(false);
-                const importTab = ref('file');
-                const sheetUrl = ref('');
+                const copyProcessDialog = ref({ show: false, sourceVariety: null, loading: false });
 
-                // Map UI tabs to backend import identifiers
-                const importMap = {
-                    'work_master': 'work',
-                    'material_master': 'material',
-                    'equipment_master': 'equip'
-                };
+                const executeCopyProcess = async () => {
+                    if (!copyProcessDialog.value.sourceVariety || !processTab.value) return;
 
-                const openImportDialog = (tableId) => {
-                    importType.value = importMap[tableId] || tableId;
-                    csvFile.value = null;
-                    importTab.value = 'file';
-                    sheetUrl.value = '';
-                    importDialog.value = true;
-                };
+                    const confirmed = confirm(`「${copyProcessDialog.value.sourceVariety}」の全工程を「${processTab.value}」にインポートしますか？\n（現在の工程は上書きされます）`);
+                    if (!confirmed) return;
 
-                const processParsedCsv = async function (results) {
+                    copyProcessDialog.value.loading = true;
                     try {
-                        const payload = { type: importType.value, data: results.data };
-                        const res = await fetch('/api/admin/import', {
+                        const payload = {
+                            sourceVariety: copyProcessDialog.value.sourceVariety,
+                            targetVariety: processTab.value
+                        };
+                        const res = await fetch('/api/admin/copy_process', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(payload)
                         });
-                        const responseData = await res.json();
-
-                        if (responseData.success) {
-                            snackbar.value = { show: true, color: 'success', text: responseData.message };
-                            importDialog.value = false;
+                        const data = await res.json();
+                        if (data.success) {
+                            snackbar.value = { show: true, color: 'success', text: data.message };
+                            copyProcessDialog.value.show = false;
                             loadData(); // refresh table
                         } else {
-                            snackbar.value = { show: true, color: 'error', text: responseData.error || 'エラー発生' };
+                            snackbar.value = { show: true, color: 'error', text: data.error || 'コピー失敗' };
                         }
                     } catch (e) {
                         snackbar.value = { show: true, color: 'error', text: '通信に失敗しました' };
                     } finally {
-                        isImporting.value = false;
-                    }
-                };
-
-                const executeImport = () => {
-                    if (importTab.value === 'file') {
-                        if (!csvFile.value) return;
-
-                        const file = Array.isArray(csvFile.value) ? csvFile.value[0] : csvFile.value;
-                        if (!file) return;
-
-                        isImporting.value = true;
-                        Papa.parse(file, {
-                            header: true,
-                            skipEmptyLines: true,
-                            complete: processParsedCsv,
-                            error: function (err) {
-                                isImporting.value = false;
-                                snackbar.value = { show: true, color: 'error', text: 'CSV読み込みエラー' };
-                            }
-                        });
-                    } else if (importTab.value === 'sheet') {
-                        if (!sheetUrl.value) return;
-                        isImporting.value = true;
-
-                        fetch(sheetUrl.value)
-                            .then(res => {
-                                if (!res.ok) throw new Error('ネットワークエラー');
-                                return res.text();
-                            })
-                            .then(csvText => {
-                                Papa.parse(csvText, {
-                                    header: true,
-                                    skipEmptyLines: true,
-                                    complete: processParsedCsv,
-                                    error: function (err) {
-                                        isImporting.value = false;
-                                        snackbar.value = { show: true, color: 'error', text: 'CSVパースエラー' };
-                                    }
-                                });
-                            })
-                            .catch(err => {
-                                isImporting.value = false;
-                                snackbar.value = { show: true, color: 'error', text: 'URLからの読み込みに失敗しました' };
-                            });
+                        copyProcessDialog.value.loading = false;
                     }
                 };
 
@@ -2393,13 +2249,13 @@
                 return {
                     tab, processTab, fieldsTab, loading, tableData, snackbar, inlineEditingId, colorDialog, tableConfigs, loadData, selectedFields, bulkEditDialog, allFieldsSelected,
                     uniqueVarieties, uniqueFieldFolders, colorPalette, cropColorMap, cropBaseColorMap, workMasterTree, materialMasterTree, equipmentMasterTree, varietiesMasterTree, aggregatedTaskSummaries,
-                    importDialog, importType, csvFile, isImporting, openImportDialog, executeImport, importTab, sheetUrl,
                     unitTypeOptions, baseUnitOptions, unitNameOptions,
                     crudDialog, isSaving, deleteDialog, openCrudDialog, saveRecord, openBulkEditDialog, saveBulkFieldDesignAction,
                     openColorDialog, saveItemColor, saveInlineFieldDesignAction, saveInlineAction, saveNewInlineAction, renameCategory, deleteRecord, confirmDeleteRecord,
                     seasonPlanTab, newSeasonPlan, uniqueSeasonPlanTabs, availableVarietiesForTab, formatVarietySuffix, arableFields, facilityFields, filteredSeasonPlans, getFieldMaxPlantable, addSeasonPlan,
-                    newProcessPlan, addProcessPlan, insertProcessPlanRow, exportProcessMasterExcel, filteredProcessPlans, workMinorListOptions, unitTypeOptions, unitNameOptions, materialOptions, equipmentOptions,
-                    mapModal, openMapModal, calendarEl, fieldVarietyMap, fieldsVarietyFilter, uniqueFieldVarieties
+                    newProcessPlan, addProcessPlan, insertProcessPlanRow, filteredProcessPlans, workMinorListOptions, unitTypeOptions, unitNameOptions, materialOptions, equipmentOptions,
+                    mapModal, openMapModal, calendarEl, fieldVarietyMap, fieldsVarietyFilter, uniqueFieldVarieties,
+                    copyProcessDialog, executeCopyProcess
                 }
             }
         }).use(vuetify).mount('#app');
