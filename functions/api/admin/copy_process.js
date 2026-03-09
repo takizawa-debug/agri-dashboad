@@ -14,8 +14,9 @@ export async function onRequestPost({ request, env }) {
 
         const batchStmts = [deleteStmt];
 
-        // 3. Prepare insert statements for each source item, assigning a new UUID and the target variety name
+        // 3. Prepare insert statements for each source item, assigning the target variety name
         if (sourceItems && sourceItems.length > 0) {
+            // omit 'id' so sqlite autoincrements it
             const columnsToCopy = Object.keys(sourceItems[0]).filter(k => k !== 'id' && k !== 'variety_name');
 
             for (const item of sourceItems) {
@@ -29,11 +30,10 @@ export async function onRequestPost({ request, env }) {
                     placeholders.push('?');
                 });
 
-                // Override id and variety_name
-                const newId = crypto.randomUUID();
-                insertKeys.push('id', 'variety_name');
-                values.push(newId, targetVariety);
-                placeholders.push('?', '?');
+                // Override variety_name
+                insertKeys.push('variety_name');
+                values.push(targetVariety);
+                placeholders.push('?');
 
                 const insertStmt = env.DB.prepare(
                     `INSERT INTO process_master (${insertKeys.join(', ')}) VALUES (${placeholders.join(', ')})`
