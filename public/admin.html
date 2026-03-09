@@ -831,6 +831,13 @@
                                 <div v-else-if="t.id === 'tasks'" class="mt-4">
                                     <v-container fluid class="pa-4 bg-grey-lighten-4"
                                         style="min-height: calc(100vh - 200px);">
+                                        <v-card class="mb-10 pa-4" elevation="2"
+                                            v-show="Object.keys(aggregatedTaskSummaries).length > 0">
+                                            <div class="text-h6 font-weight-bold text-teal-darken-3 mb-4">
+                                                <v-icon class="mr-2 pb-1">mdi-calendar-check</v-icon>作業カレンダー
+                                            </div>
+                                            <div ref="calendarEl" class="tasks-calendar-container"></div>
+                                        </v-card>
                                         <div v-if="Object.keys(aggregatedTaskSummaries).length === 0"
                                             class="text-center text-grey text-h6 mt-10">
                                             時期計画データが登録されていません
@@ -1092,27 +1099,26 @@
                 <v-card>
                     <v-card-title class="text-h6 pb-2">複数レコードの一括編集 ({{ selectedFields.length }}件)</v-card-title>
                     <v-card-text>
-                        <v-container>
-                            <p class="mb-4 text-caption text-grey-darken-1">
-                                入力した項目のみ、選択されたすべてのレコードに上書き反映されます。変更しない項目は空欄のままにしてください。</p>
-                            <v-row>
-                                <v-col cols="12" sm="6">
-                                    <v-text-field v-model="bulkEditDialog.item.ridge_width" label="畝幅(cm) [未入力で据え置き]"
-                                        variant="outlined" density="comfortable" type="number"></v-text-field>
-                                </v-col>
-                                <v-col cols="12" sm="6">
-                                    <v-text-field v-model="bulkEditDialog.item.ridge_distance" label="畝間(cm) [未入力で据え置き]"
-                                        variant="outlined" density="comfortable" type="number"></v-text-field>
-                                </v-col>
-                                <v-col cols="12" sm="6">
-                                    <v-text-field v-model="bulkEditDialog.item.number_of_rows" label="条数 [未入力で据え置き]"
-                                        variant="outlined" density="comfortable" type="number"></v-text-field>
-                                </v-col>
-                                <v-col cols="12" sm="6">
-                                    <v-text-field v-model="bulkEditDialog.item.plant_distance" label="株間(cm) [未入力で据え置き]"
-                                        variant="outlined" density="comfortable" type="number"></v-text-field>
-                                </v-col>
-                            </v-row>
+                        <p class="mb-4 text-caption text-grey-darken-1">
+                            入力した項目のみ、選択されたすべてのレコードに上書き反映されます。変更しない項目は空欄のままにしてください。</p>
+                        <v-row>
+                            <v-col cols="12" sm="6">
+                                <v-text-field v-model="bulkEditDialog.item.ridge_width" label="畝幅(cm) [未入力で据え置き]"
+                                    variant="outlined" density="comfortable" type="number"></v-text-field>
+                            </v-col>
+                            <v-col cols="12" sm="6">
+                                <v-text-field v-model="bulkEditDialog.item.ridge_distance" label="畝間(cm) [未入力で据え置き]"
+                                    variant="outlined" density="comfortable" type="number"></v-text-field>
+                            </v-col>
+                            <v-col cols="12" sm="6">
+                                <v-text-field v-model="bulkEditDialog.item.number_of_rows" label="条数 [未入力で据え置き]"
+                                    variant="outlined" density="comfortable" type="number"></v-text-field>
+                            </v-col>
+                            <v-col cols="12" sm="6">
+                                <v-text-field v-model="bulkEditDialog.item.plant_distance" label="株間(cm) [未入力で据え置き]"
+                                    variant="outlined" density="comfortable" type="number"></v-text-field>
+                            </v-col>
+                        </v-row>
                         </v-container>
                     </v-card-text>
                     <v-card-actions>
@@ -1148,12 +1154,33 @@
         </v-app>
     </div>
 
+    <style>
+        .fixed-header thead th {
+            position: sticky;
+            top: 0;
+            background-color: #f5f5f5 !important;
+            z-index: 2;
+        }
+
+        /* FullCalendar Customization */
+        .tasks-calendar-container .fc-event {
+            border: none !important;
+            margin-bottom: 2px;
+            border-radius: 4px;
+        }
+
+        .tasks-calendar-container .fc-daygrid-event-dot {
+            display: none;
+        }
+    </style>
+
     <!-- Scripts -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vuetify@3.4.0/dist/vuetify.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
     <script>
         const { createApp, ref, onMounted, watch } = Vue;
         const vuetify = Vuetify.createVuetify();
@@ -1653,6 +1680,68 @@
                     return tree;
                 });
 
+                const calendarEl = Vue.ref(null);
+                let calendarInstance = null;
+
+                const renderCalendar = () => {
+                    if (!calendarEl.value) return;
+                    if (calendarInstance) {
+                        calendarInstance.destroy();
+                    }
+
+                    const events = [];
+                    Object.keys(aggregatedTaskSummaries.value).forEach(itemName => {
+                        const group = aggregatedTaskSummaries.value[itemName];
+                        const baseColor = cropBaseColorMap.value[itemName] || 'grey';
+
+                        group.plans.forEach(summary => {
+                            summary.dateEvents.forEach(ev => {
+                                let titleStr = ev.name;
+                                if (summary.plan.variety_name) {
+                                    const pParts = summary.plan.variety_name.split('_');
+                                    if (pParts.length > 1) {
+                                        titleStr = `【${pParts[1]}】${ev.name}`;
+                                    } else {
+                                        titleStr = `【${summary.plan.variety_name}】${ev.name}`;
+                                    }
+                                }
+                                events.push({
+                                    title: titleStr,
+                                    start: ev.rawDate,
+                                    allDay: true,
+                                    classNames: [`bg-${baseColor}`, `border-${baseColor}`, 'text-white', 'text-caption', 'px-1']
+                                });
+                            });
+                        });
+                    });
+
+                    calendarInstance = new FullCalendar.Calendar(calendarEl.value, {
+                        initialView: 'dayGridMonth',
+                        locale: 'ja',
+                        events: events,
+                        contentHeight: 'auto',
+                        headerToolbar: {
+                            left: 'prev,next today',
+                            center: 'title',
+                            right: 'dayGridMonth,timeGridWeek'
+                        },
+                        buttonText: {
+                            today: '今日',
+                            month: '月',
+                            week: '週'
+                        }
+                    });
+                    calendarInstance.render();
+                };
+
+                Vue.watch([tab, aggregatedTaskSummaries], () => {
+                    if (tab.value === 'tasks') {
+                        Vue.nextTick(() => {
+                            renderCalendar();
+                        });
+                    }
+                }, { immediate: true, deep: true });
+
                 // Compute aggregate info for tasks tab using season plans, fields, and process master
                 const aggregatedTaskSummaries = Vue.computed(() => {
                     const plans = tableData.value['season_plans'] || [];
@@ -1723,7 +1812,8 @@
                                         const dayStr = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()];
                                         innerGroups[groupKey].dateEvents.push({
                                             name: w,
-                                            date: `${d.getFullYear()}/${('0' + (d.getMonth() + 1)).slice(-2)}/${('0' + d.getDate()).slice(-2)}（${dayStr}）`
+                                            date: `${d.getFullYear()}/${('0' + (d.getMonth() + 1)).slice(-2)}/${('0' + d.getDate()).slice(-2)}（${dayStr}）`,
+                                            rawDate: `${d.getFullYear()}-${('0' + (d.getMonth() + 1)).slice(-2)}-${('0' + d.getDate()).slice(-2)}`
                                         });
                                     }
                                 });
@@ -2232,7 +2322,7 @@
                     openColorDialog, saveItemColor, saveInlineFieldDesignAction, saveInlineAction, saveNewInlineAction, renameCategory, deleteRecord, confirmDeleteRecord,
                     seasonPlanTab, newSeasonPlan, uniqueSeasonPlanTabs, availableVarietiesForTab, formatVarietySuffix, arableFields, facilityFields, filteredSeasonPlans, getFieldMaxPlantable, addSeasonPlan,
                     newProcessPlan, addProcessPlan, insertProcessPlanRow, exportProcessMasterExcel, filteredProcessPlans, workMinorListOptions, unitTypeOptions, unitNameOptions, materialOptions, equipmentOptions,
-                    mapModal, openMapModal
+                    mapModal, openMapModal, calendarEl
                 }
             }
         }).use(vuetify).mount('#app');
