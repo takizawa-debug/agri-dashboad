@@ -58,7 +58,6 @@ CREATE TABLE process_master (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     variety_name TEXT NOT NULL,
     base_day_offset INTEGER,
-    timing_type TEXT,
     frequency TEXT,
     work_major TEXT,
     work_mid TEXT,
