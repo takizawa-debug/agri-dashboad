@@ -835,21 +835,42 @@
                                             class="text-center text-grey text-h6 mt-10">
                                             時期計画データが登録されていません
                                         </div>
-                                        <div v-for="(plans, itemName) in aggregatedTaskSummaries" :key="itemName"
+                                        <div v-for="(group, itemName) in aggregatedTaskSummaries" :key="itemName"
                                             class="mb-10">
-                                            <h2
-                                                class="text-h5 font-weight-bold mb-4 text-teal-darken-3 border-b-sm border-teal pb-2">
-                                                <v-icon class="mr-2"
-                                                    :color="cropBaseColorMap[itemName] || 'grey'">mdi-leaf</v-icon>
-                                                {{ itemName }}
-                                            </h2>
+                                            <div
+                                                class="d-flex align-end justify-space-between border-b-sm border-teal pb-2 mb-4 flex-wrap">
+                                                <h2 class="text-h5 font-weight-bold text-teal-darken-3 mb-2 mb-md-0">
+                                                    <v-icon class="mr-2"
+                                                        :color="cropBaseColorMap[itemName] || 'grey'">mdi-leaf</v-icon>
+                                                    {{ itemName }}
+                                                </h2>
+                                                <div
+                                                    class="text-body-2 text-md-subtitle-1 text-grey-darken-3 d-flex flex-wrap gap-4 font-weight-medium">
+                                                    <span>定植数: <strong class="text-deep-orange">{{ group.totalPlantable
+                                                            }}</strong> 株</span>
+                                                    <span>播種数:
+                                                        <strong class="text-deep-orange" v-if="group.hasSeedRatio">{{
+                                                            group.totalSow }}</strong>
+                                                        <strong class="text-deep-orange" v-else>ー</strong> 粒
+                                                    </span>
+                                                    <span>マルチ: <strong class="text-purple">{{ group.totalMulch
+                                                            }}</strong> m</span>
+                                                    <span>見込収穫: <strong class="text-green-darken-2">{{ group.totalYield
+                                                            }}</strong> {{ group.yieldUnit || '本' }}</span>
+                                                </div>
+                                            </div>
                                             <v-row>
-                                                <v-col cols="12" md="6" lg="4" v-for="summary in plans"
+                                                <v-col cols="12" md="6" lg="4" v-for="summary in group.plans"
                                                     :key="summary.plan.id">
                                                     <v-card class="h-100 d-flex flex-column" elevation="2">
                                                         <v-card-title
                                                             class="bg-teal-lighten-5 text-teal-darken-4 font-weight-bold text-subtitle-1 pb-2 pt-3">
-                                                            {{ summary.plan.variety_name }}
+                                                            <v-icon start size="small"
+                                                                class="mr-1">mdi-calendar-start</v-icon>
+                                                            起算日: {{ summary.plan.base_date || '未設定' }}
+                                                            <span
+                                                                class="text-caption text-grey-darken-1 ml-2 d-block d-sm-inline mt-1 mt-sm-0">({{
+                                                                summary.plan.variety_name }})</span>
                                                         </v-card-title>
                                                         <v-card-text class="pt-4 flex-grow-1">
                                                             <div class="mb-3">
@@ -1723,13 +1744,29 @@
                     const finalGroups = {};
                     Object.values(innerGroups).forEach(summary => {
                         summary.totalArea = Math.round(summary.totalArea * 100) / 100;
-                        if (!finalGroups[summary.itemName]) finalGroups[summary.itemName] = [];
-                        finalGroups[summary.itemName].push(summary);
+                        if (!finalGroups[summary.itemName]) {
+                            finalGroups[summary.itemName] = {
+                                plans: [],
+                                totalPlantable: 0,
+                                totalSow: 0,
+                                totalMulch: 0,
+                                totalYield: 0,
+                                yieldUnit: summary.yieldUnit,
+                                hasSeedRatio: summary.hasSeedRatio
+                            };
+                        }
+                        const g = finalGroups[summary.itemName];
+                        g.plans.push(summary);
+                        g.totalPlantable += summary.maxPlantable || 0;
+                        g.totalSow += summary.sowCount || 0;
+                        g.totalMulch += summary.mulchLength || 0;
+                        g.totalYield += summary.yieldAmount || 0;
+                        g.hasSeedRatio = g.hasSeedRatio || summary.hasSeedRatio;
                     });
 
                     // Sort varieties inside each group by base_date
-                    Object.values(finalGroups).forEach(arr => {
-                        arr.sort((a, b) => {
+                    Object.values(finalGroups).forEach(group => {
+                        group.plans.sort((a, b) => {
                             if (!a.plan.base_date) return 1;
                             if (!b.plan.base_date) return -1;
                             return a.plan.base_date.localeCompare(b.plan.base_date);
