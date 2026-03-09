@@ -480,150 +480,63 @@
 
                                     <!-- Data Rows (Crops) -->
                                     <template v-for="(plan, pIdx) in filteredScheduleData" :key="plan.planId">
-                                        <div class="gantt-row-container"
-                                            :style="{ height: expandedRows[plan.planId] ? (Math.max(getTaskLayout(plan).height, 160) + 'px') : '70px', transition: 'height 0.3s ease' }">
-
-                                            <!-- Row Label (Sticky) -->
-                                            <div class="gantt-label-fixed">
-                                                <div class="d-flex align-center justify-space-between mb-1"
-                                                    style="width: 100%;">
-                                                    <div class="d-flex flex-column justify-center cursor-pointer"
-                                                        :title="plan.cropName" @click.stop="toggleRow(plan.planId)"
-                                                        style="flex: 1; min-width: 0; text-align: left;">
-                                                        <div
-                                                            class="font-weight-bold text-body-2 text-truncate d-flex align-center">
-                                                            <span
-                                                                :class="`text-${getCropColor(plan.cropName)} mr-1`">●</span>
-                                                            {{ formatCropTitle(plan.cropName) }}
-                                                        </div>
-                                                        <div v-if="formatCropSubtitle(plan.cropName)"
-                                                            class="text-caption text-grey text-truncate ml-4"
-                                                            style="font-size: 0.65rem !important; line-height: 1;">
-                                                            {{ formatCropSubtitle(plan.cropName) }}
-                                                        </div>
+                                        <!-- Plan summary row (always visible) -->
+                                        <div class="gantt-row-container" style="background-color: #f7fdf9; border-bottom: 2px solid #e5e7eb;">
+                                            <div class="gantt-label-fixed" style="background-color: #f7fdf9; z-index: 35; align-items: flex-start;">
+                                                <div class="d-flex align-center justify-space-between w-100 cursor-pointer" @click.stop="toggleRow(plan.planId)">
+                                                    <div class="font-weight-bold text-body-2 text-truncate d-flex align-center">
+                                                        <span :class="`text-${getCropColor(plan.cropName)} mr-1`">●</span> {{ formatCropTitle(plan.cropName) }}
+                                                        <span class="text-caption text-grey ml-1">{{ formatCropSubtitle(plan.cropName) }}</span>
                                                     </div>
-                                                    <v-icon size="small" class="ml-2 text-grey"
-                                                        @click.stop="toggleRow(plan.planId)" style="cursor: pointer;">{{
-                                                        expandedRows[plan.planId] ? 'mdi-chevron-up' :
-                                                        'mdi-chevron-down' }}</v-icon>
+                                                    <v-icon size="small" class="text-grey">{{ expandedRows[plan.planId] ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon>
                                                 </div>
-
-                                                <!-- Field Links -->
-                                                <div class="text-caption text-blue-darken-2 d-flex align-center mt-1 flex-wrap"
-                                                    style="line-height: 1.2;">
+                                                <div class="text-caption text-blue-darken-2 d-flex align-center mt-1 flex-wrap" style="line-height: 1.2;">
                                                     <v-icon size="x-small" class="mr-1">mdi-map-marker-outline</v-icon>
                                                     <template v-for="(f, fIdx) in plan.fields" :key="fIdx">
-                                                        <span style="cursor: pointer; text-decoration: underline;"
-                                                            @click.stop="openFieldModal(f)">{{ f || '未定' }}</span>
-                                                        <span v-if="fIdx < plan.fields.length - 1"
-                                                            class="mx-1 text-grey"
-                                                            style="text-decoration: none;">,</span>
+                                                        <span style="cursor: pointer; text-decoration: underline;" @click.stop="openFieldModal(f)">{{ f || '未定' }}</span>
+                                                        <span v-if="fIdx < plan.fields.length - 1" class="mx-1 text-grey" style="text-decoration: none;">,</span>
                                                     </template>
                                                 </div>
-
-                                                <v-expand-transition>
-                                                    <div v-show="expandedRows[plan.planId]">
-                                                        <!-- Metrics: Area and Planting Count -->
-                                                        <div class="text-caption text-grey-darken-2 mt-2 d-flex align-center flex-wrap font-weight-medium"
-                                                            style="font-size: 0.7rem !important; gap: 4px;">
-                                                            <v-icon size="x-small"
-                                                                class="mr-1">mdi-chart-areaspline</v-icon>
-                                                            <span class="mr-2">{{
-                                                                Math.round(plan.totalArea).toLocaleString() }}
-                                                                ㎡</span>
-
-                                                            <v-icon size="x-small"
-                                                                class="mr-1 text-green-darken-3">mdi-sprout</v-icon>
-                                                            <span class="text-green-darken-3 mr-2">{{
-                                                                plan.totalPlantingCount.toLocaleString() }} 本</span>
-
-                                                            <v-icon size="x-small"
-                                                                class="text-purple-darken-3">mdi-tape-measure</v-icon>
-                                                            <span class="text-purple-darken-3 mr-1"
-                                                                title="マルチ必要量(畝長+2m/本) ">{{
-                                                                Math.round(plan.totalMulchLength).toLocaleString() }}
-                                                                m</span>
-                                                        </div>
-
-                                                        <!-- Sowing and Yield Metrics -->
-                                                        <div class="text-caption text-grey-darken-2 mt-1 d-flex align-center flex-wrap font-weight-medium"
-                                                            style="font-size: 0.7rem !important; gap: 4px;">
-                                                            <v-icon size="x-small" class="mr-1">mdi-seed</v-icon>
-                                                            <span class="mr-2 text-brown-darken-2">{{
-                                                                plan.totalSowingCount.toLocaleString() }} 粒</span>
-
-                                                            <v-icon size="x-small"
-                                                                class="text-blue-grey-darken-2">mdi-grid</v-icon>
-                                                            <span class="text-blue-grey-darken-2 mr-2"
-                                                                title="128穴トレイ換算">{{
-                                                                Math.ceil(plan.totalSowingCount / 128).toLocaleString()
-                                                                }}
-                                                                枚</span>
-
-                                                            <v-icon size="x-small"
-                                                                class="text-orange-darken-3">mdi-basket-fill</v-icon>
-                                                            <span class="text-orange-darken-3">{{
-                                                                plan.totalHarvestYield.toLocaleString() }} {{
-                                                                plan.harvestUnit
-                                                                || 'kg' }}</span>
-                                                        </div>
-
-                                                        <!-- Dates: Base and Harvest -->
-                                                        <div class="text-caption text-grey-darken-1 mt-1 d-flex align-center font-weight-medium"
-                                                            style="font-size: 0.7rem !important;">
-                                                            <v-icon size="x-small"
-                                                                class="mr-1">mdi-calendar-range</v-icon>
-                                                            {{ plan.baseDate }} ～ {{ plan.harvestDate || '未定' }}
-                                                        </div>
-                                                    </div>
-                                                </v-expand-transition>
                                             </div>
-
-                                            <!-- Row Timeline Background Columns -->
                                             <div class="gantt-days">
-                                                <div v-for="d in timelineDates" :key="d.fullDateStr"
-                                                    class="gantt-day-bg" :class="getDayClass(d)">
-                                                </div>
+                                                <div v-for="d in timelineDates" :key="d.fullDateStr" class="gantt-day-bg" :class="getDayClass(d)"></div>
                                             </div>
-
-                                            <!-- Floating Task Overlays -->
-                                            <div v-for="taskObj in getTaskLayout(plan).layout"
-                                                :key="taskObj.data.taskId + '-' + taskObj.left"
-                                                class="gantt-task-overlay shadow-sm"
-                                                v-show="expandedRows[plan.planId] || taskObj.top < 50"
-                                                :style="{ left: taskObj.left + 'px', top: taskObj.top + 'px', width: taskObj.width + 'px' }"
-                                                @click="showTaskDetails(taskObj.data, plan)">
-                                                <!-- Bar Visuals -->
-                                                <div class="task-bar-content"
-                                                    :class="[getTaskColorClass(taskObj.data), (taskObj.isContinuous && taskObj.mergedCount > 1) ? 'task-continuous-pattern' : '']"
-                                                    :style="taskObj.isContinuous && taskObj.mergedCount > 1 ? 'opacity: 0.95;' : ''">
-                                                    <div class="task-tail"></div>
-                                                    <div class="task-core"></div>
-                                                    <div class="task-tail"></div>
-                                                    <!-- Fully legible overlaid text -->
-                                                    <div class="task-text-overlay d-flex align-center px-2">
-                                                        <v-icon v-if="taskObj.data.status === '完了'" size="small"
-                                                            color="white" class="mr-1">mdi-check-circle</v-icon>
-                                                        <span>{{ taskObj.data.minorCat }}</span>
-                                                        <template
-                                                            v-if="taskObj.isContinuous && taskObj.mergedCount > 1">
-                                                            <div class="ml-2 px-1 rounded bg-white text-grey-darken-3 d-flex align-center font-weight-bold shadow-sm"
-                                                                style="font-size: 0.7em; opacity: 0.9; letter-spacing: -0.5px;">
-                                                                <v-icon size="10" class="mr-1">mdi-refresh</v-icon>
-                                                                {{ taskObj.data.intervalDays }}日毎(計{{
-                                                                taskObj.mergedCount }}回)
-                                                            </div>
-                                                            <span class="ml-1" style="font-size: 0.75em;">{{
-                                                                taskObj.data.estimatedHours }}h/回</span>
-                                                        </template>
-                                                        <span v-else class="ml-1" style="font-size: 0.8em;">
-                                                            ({{ taskObj.data.estimatedHours }}h)
-                                                        </span>
+                                        </div>
+                                        
+                                        <!-- Process lines (expanded) -->
+                                        <template v-if="expandedRows[plan.planId]">
+                                            <div v-for="(proc, procIdx) in plan.processes" :key="proc.procId" class="gantt-row-container" style="height: 48px;">
+                                                <div class="gantt-label-fixed justify-center">
+                                                    <div class="text-caption font-weight-bold text-truncate w-100 ml-4 d-flex align-center" :title="proc.minorCat">
+                                                        <v-icon size="x-small" class="mr-1 text-grey">mdi-arrow-right-bottom</v-icon>
+                                                        {{ proc.minorCat || '作業未定' }}
                                                     </div>
                                                 </div>
+                                                <div class="gantt-days" style="position: relative;">
+                                                    <div v-for="d in timelineDates" :key="d.fullDateStr" class="gantt-day-bg" :class="getDayClass(d)"></div>
+                                                    
+                                                    <!-- Process Bar -->
+                                                    <div class="gantt-task-overlay shadow-sm"
+                                                        v-if="getProcessLayout(proc).left >= -60 && getProcessLayout(proc).width > 0"
+                                                        :style="{ left: getProcessLayout(proc).left + 'px', top: '8px', width: getProcessLayout(proc).width + 'px', height: '32px' }"
+                                                        >
+                                                        <div class="task-bar-content" :class="[getTaskColorClass(proc), (proc.startOffset !== proc.endOffset && proc.interval > 0) ? 'task-continuous-pattern' : '']" :style="(proc.startOffset !== proc.endOffset && proc.interval > 0) ? 'opacity: 0.95;' : ''">
+                                                            <div class="task-core"></div>
+                                                            <div class="task-text-overlay d-flex align-center px-2">
+                                                                <span>{{ proc.minorCat }}</span>
+                                                                <template v-if="proc.startOffset !== proc.endOffset && proc.interval > 0">
+                                                                    <div class="ml-2 px-1 rounded bg-white text-grey-darken-3 d-flex align-center font-weight-bold shadow-sm" style="font-size: 0.7em; opacity: 0.9; letter-spacing: -0.5px;">
+                                                                        <v-icon size="10" class="mr-1">mdi-refresh</v-icon>
+                                                                        {{ Math.floor((proc.endOffset - proc.startOffset) / proc.interval) + 1 }}回 ({{ proc.interval }}日毎)
+                                                                    </div>
+                                                                </template>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                </div>
                                             </div>
-
-                                        </div>
+                                        </template>
                                     </template>
                                 </div>
                                 <div v-else class="text-center py-8">
@@ -873,7 +786,8 @@
                                 harvestUnit: plan.harvestUnit || "",
                                 totalArea: fieldsData.value[plan.field]?.areaTotal || 0,
                                 totalMulchLength: fieldMulchLen,
-                                tasks: plan.tasks
+                                tasks: plan.tasks,
+                                processes: plan.processes
                             };
                         } else {
                             if (!groups[key].fields.includes(plan.field)) {
@@ -1034,6 +948,12 @@
                             if (t.targetDateObj < minTime) minTime = t.targetDateObj;
                             if (t.targetDateObj > maxTime) maxTime = t.targetDateObj;
                         });
+                        if (plan.processes) {
+                            plan.processes.forEach(p => {
+                                if (p.startDateObj < minTime) minTime = p.startDateObj;
+                                if (p.endDateObj > maxTime) maxTime = p.endDateObj;
+                            });
+                        }
                     });
 
                     if (minTime === Infinity) {
@@ -1083,6 +1003,30 @@
                     if (d.day === '日' || isHoliday(d.fullDateStr)) return 'bg-holiday text-red';
                     if (d.day === '土') return 'bg-saturday text-blue';
                     return '';
+                };
+
+                const getProcessLayout = (proc) => {
+                    if (!timelineDates.value || timelineDates.value.length === 0) return { left: 0, width: 0 };
+                    
+                    const d1Str = timelineDates.value[0].fullDateStr;
+                    // convert to local midnight time to avoid timezone drift
+                    const d1Date = new Date(d1Str);
+                    const sDate = new Date(proc.startDate);
+                    const eDate = new Date(proc.endDate);
+                    
+                    const MS_PER_DAY = 1000 * 60 * 60 * 24;
+                    // We use UTC trick to get exact day diff
+                    const utc1 = Date.UTC(d1Date.getFullYear(), d1Date.getMonth(), d1Date.getDate());
+                    const utc2 = Date.UTC(sDate.getFullYear(), sDate.getMonth(), sDate.getDate());
+                    const utc3 = Date.UTC(eDate.getFullYear(), eDate.getMonth(), eDate.getDate());
+                    
+                    const leftDays = Math.floor((utc2 - utc1) / MS_PER_DAY);
+                    const widthDays = Math.floor((utc3 - utc2) / MS_PER_DAY) + 1;
+                    
+                    return {
+                        left: leftDays * 60,
+                        width: Math.max(widthDays, 1) * 60
+                    };
                 };
 
                 const getTaskColorClass = (task) => {

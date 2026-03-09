@@ -35,7 +35,45 @@ export async function onRequest(context) {
 
             let generatedTasks = [];
 
-            cropProcs.forEach((proc, procIdx) => {
+            
+            let ganttProcesses = [];
+cropProcs.forEach((proc, procIdx) => {
+                let startDateObj = new Date(plan.base_date);
+                if (isNaN(startDateObj.getTime())) startDateObj = new Date();
+                
+                const sOffset = parseInt(proc.base_day_offset) || 0;
+                let eOffset = parseInt(proc.base_day_end_offset);
+                const inter = parseInt(proc.repeat_interval) || 1;
+                
+                if (isNaN(eOffset) || eOffset < sOffset) {
+                    eOffset = sOffset;
+                }
+                
+                let sDate = new Date(startDateObj);
+                sDate.setDate(sDate.getDate() + sOffset);
+                let eDate = new Date(startDateObj);
+                eDate.setDate(eDate.getDate() + eOffset);
+                
+                const majorCatCache = proc.work_major || workMap[proc.work_minor] || '';
+                
+                ganttProcesses.push({
+                    procId: `${plan.id}-${procIdx}`,
+                    majorCat: majorCatCache,
+                    midCat: proc.work_mid || '',
+                    minorCat: proc.work_minor || '',
+                    detail: proc.work_details || '',
+                    startDate: `${sDate.getFullYear()}-${String(sDate.getMonth() + 1).padStart(2, '0')}-${String(sDate.getDate()).padStart(2, '0')}`,
+                    endDate: `${eDate.getFullYear()}-${String(eDate.getMonth() + 1).padStart(2, '0')}-${String(eDate.getDate()).padStart(2, '0')}`,
+                    startDateObj: sDate.getTime(),
+                    endDateObj: eDate.getTime(),
+                    startOffset: sOffset,
+                    endOffset: eOffset,
+                    interval: inter,
+                    materialName: proc.material_name || '',
+                    equipmentName: proc.equipment_name || '',
+                    baseWorkHours: parseFloat(proc.unit_value) || 0
+                });
+
                 const startOffset = parseInt(proc.base_day_offset) || 0;
                 let endOffset = parseInt(proc.base_day_end_offset);
                 let interval = parseInt(proc.repeat_interval) || 1;
@@ -99,7 +137,8 @@ export async function onRequest(context) {
                 cropName: plan.variety_name,
                 field: plan.field_name,
                 baseDate: plan.base_date,
-                tasks: generatedTasks
+                tasks: generatedTasks,
+                processes: ganttProcesses
             };
         });
 
