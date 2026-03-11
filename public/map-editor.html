@@ -1060,8 +1060,8 @@
 
                         // Background fetch to keep lists in sync and redraw groups
                         const [fRes, dRes] = await Promise.all([
-                            fetch('/api/admin/data/fields'),
-                            fetch('/api/admin/data/field_designs')
+                            fetch(`/api/admin/data/fields?t=${Date.now()}`),
+                            fetch(`/api/admin/data/field_designs?t=${Date.now()}`)
                         ]);
                         const fData = await fRes.json();
                         const dData = await dRes.json();
