@@ -278,14 +278,24 @@
                             <!-- Action Zone -->
                             <v-card elevation="0" class="mt-4 bg-transparent text-center border-t pt-4">
                                 <v-row dense>
-                                    <v-col cols="12">
+                                    <!-- NEW FIELD: Explicit Save Button -->
+                                    <v-col cols="12" v-if="isNewField">
+                                        <v-btn block color="primary" variant="flat" size="large"
+                                            prepend-icon="mdi-content-save"
+                                            :loading="isSaving"
+                                            @click="saveField">
+                                            この新規圃場を保存する
+                                        </v-btn>
+                                        <div class="text-caption text-grey mt-1">※ 保存ボタンを押すまでデータベースには登録されません</div>
+                                    </v-col>
+                                    <v-col cols="12" v-if="!isNewField">
                                         <v-btn block :color="isEditingShape ? 'amber-darken-2' : 'info'" variant="flat"
                                             :prepend-icon="isEditingShape ? 'mdi-check' : 'mdi-vector-polyline-edit'"
                                             @click="toggleEditShape">
                                             {{ isEditingShape ? '形状変更を確定 (自動保存)' : '圃場の形状を編集' }}
                                         </v-btn>
                                     </v-col>
-                                    <v-col cols="12" class="mt-2">
+                                    <v-col cols="12" class="mt-2" v-if="!isNewField">
                                         <v-btn block color="error" variant="tonal" prepend-icon="mdi-delete"
                                             @click="deleteShape">
                                             この圃場を削除
@@ -335,7 +345,7 @@
     <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.min.js"></script>
 
     <script>
-        const { createApp, ref, onMounted, nextTick, watch } = Vue;
+        const { createApp, ref, computed, onMounted, nextTick, watch } = Vue;
         const vuetify = Vuetify.createVuetify();
 
         createApp({
@@ -379,6 +389,11 @@
 
                 // Props for DB 
                 const fieldProps = ref({ id: null, name: '', folder: '' });
+
+                // Computed: is the currently selected field a NEW (unsaved) field?
+                const isNewField = computed(() => {
+                    return fieldProps.value.id && fieldProps.value.id.toString().startsWith('NEW_');
+                });
 
                 // Agricultural Design Parameters
                 const design = ref({
@@ -493,8 +508,8 @@
                             // Select it immediately and let it compute bounds/areas
                             await handleLayerClick(layer);
 
-                            // Force save as insert to backend
-                            await saveField();
+                            // Do NOT auto-save here. The user must explicitly click the save button.
+                            snackbar.value = { show: true, color: 'info', text: '図形を描画しました。右側パネルの「この新規圃場を保存する」ボタンで保存してください。' };
                         });
                     }
 
@@ -815,6 +830,23 @@
                 const handleAutoSave = () => {
                     // Do not auto-save if a field hasn't been properly loaded
                     if (!selectedFieldId.value && (!fieldProps.value.id || !fieldProps.value.id.toString().startsWith('NEW_'))) return;
+
+                    // GUARD: Do NOT auto-save new (unsaved) fields. User must click the explicit save button.
+                    if (fieldProps.value.id && fieldProps.value.id.toString().startsWith('NEW_')) {
+                        calculateMetrics();
+                        unsavedChanges.value = true;
+                        // Update polygon color immediately if folder changed
+                        if (selectedLayer.value && selectedLayer.value.setStyle) {
+                            let color = '#4caf50';
+                            if (fieldProps.value.folder === '駐車場') color = '#9e9e9e';
+                            if (fieldProps.value.folder === 'その他施設') color = '#ff9800';
+                            if (fieldProps.value.folder === '草刈り対応') color = '#8bc34a';
+                            if (fieldProps.value.folder === '農業用ハウス') color = '#03a9f4';
+                            selectedLayer.value.setStyle({ color: color });
+                            selectedLayer.value.feature.properties.folder_name = fieldProps.value.folder;
+                        }
+                        return; // Block auto-save API call for new fields
+                    }
 
                     calculateMetrics();
                     unsavedChanges.value = true;
@@ -1294,7 +1326,7 @@
                     analyzeElevation, isAnalyzingElevation, calculatedRidges,
                     createDialog, newFieldForm, startCreateFlow, confirmCreateStart,
                     toggleEditShape, isEditingShape, deleteShape, handleAutoSave,
-                    visibleLayers, renderFieldsOnMap, isReadonly
+                    visibleLayers, renderFieldsOnMap, isReadonly, isNewField
                 }
             }
         }).use(vuetify).mount('#app');

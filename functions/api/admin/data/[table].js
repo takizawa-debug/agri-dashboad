@@ -57,8 +57,16 @@ export async function onRequest(context) {
             const values = Object.values(body);
             const placeholders = keys.map(() => '?').join(', ');
 
+            let result;
             const queryStr = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) RETURNING id`;
-            const result = await env.DB.prepare(queryStr).bind(...values).first();
+            try {
+                result = await env.DB.prepare(queryStr).bind(...values).first();
+            } catch (err) {
+                return Response.json({ 
+                    error: err.message, 
+                    debug: { queryStr, values, bodyKeys: keys } 
+                }, { status: 500 });
+            }
 
             let finalId = generatedId;
             if (!finalId && result && result.id) {
