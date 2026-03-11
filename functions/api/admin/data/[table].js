@@ -45,9 +45,12 @@ export async function onRequest(context) {
                 body.auto_name = parts.join('_');
             }
 
-            // Generate UUID if ID is missing (especially for tables with TEXT PRIMARY KEY)
-            if (!body.id) {
+            // Generate UUID if ID is missing ONLY for tables with TEXT PRIMARY KEY
+            const uuidTables = ['varieties_master', 'season_plans'];
+            let generatedId = null;
+            if (!body.id && uuidTables.includes(table)) {
                 body.id = crypto.randomUUID();
+                generatedId = body.id;
             }
 
             const keys = Object.keys(body);
@@ -58,7 +61,7 @@ export async function onRequest(context) {
                 `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`
             ).bind(...values).run();
 
-            return Response.json({ success: true, result });
+            return Response.json({ success: true, result, insertedId: generatedId || result.meta.last_row_id });
         }
 
         if (request.method === 'PUT') {

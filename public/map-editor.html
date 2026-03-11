@@ -16,6 +16,7 @@
     <!-- Leaflet CSS & Draw CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.css" />
 
     <style>
         body {
@@ -331,6 +332,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.min.js"></script>
 
     <script>
         const { createApp, ref, onMounted, nextTick, watch } = Vue;
@@ -431,69 +433,70 @@
                     highlightLayerGroup.value = L.featureGroup().addTo(lmap);
                     heatmapLayerGroup.value = L.featureGroup().addTo(lmap);
 
-                    // Translate Draw Tooltips to Japanese
-                    L.drawLocal.draw.handlers.polygon.tooltip.start = '最初の点をクリックして描画を開始';
-                    L.drawLocal.draw.handlers.polygon.tooltip.cont = '次の点をクリックして描画を継続';
-                    L.drawLocal.draw.handlers.polygon.tooltip.end = '最初の点を再度クリックして図形を閉じる';
-
-                    L.drawLocal.draw.toolbar.actions.title = '描画をキャンセル';
-                    L.drawLocal.draw.toolbar.actions.text = 'キャンセル';
-                    L.drawLocal.draw.toolbar.finish.title = '描画を完了';
-                    L.drawLocal.draw.toolbar.finish.text = '完了';
-                    L.drawLocal.draw.toolbar.undo.title = '最後に描画したポイントを削除';
-                    L.drawLocal.draw.toolbar.undo.text = '最後のポイントを削除';
-
-                    // Initialize the programmable drawer
                     if (!isReadonly.value) {
-                        polygonDrawer = new L.Draw.Polygon(lmapInstance, {
-                            allowIntersection: false,
-                            drawError: { color: '#e1e100', message: '<strong>交差しています!</strong>' },
-                            shapeOptions: { color: '#4caf50' }
+                        lmapInstance.pm.setLang('ja');
+                        // Add Geoman global controls (we only use it programmatically but it sets up bindings)
+                        lmapInstance.pm.addControls({
+                            position: 'topleft',
+                            drawPolygon: false,
+                            drawMarker: false,
+                            drawCircleMarker: false,
+                            drawPolyline: false,
+                            drawRectangle: false,
+                            drawCircle: false,
+                            editMode: false,
+                            dragMode: false,
+                            cutPolygon: false,
+                            removalMode: false,
+                            drawText: false,
+                        });
+                        
+                        lmapInstance.pm.setGlobalOptions({ 
+                            pathOptions: { color: '#4caf50' } 
+                        });
+
+                        // Draw Events (Geoman)
+                        lmapInstance.on('pm:create', async (e) => {
+                            const layer = e.layer;
+                            // Prefigure feature properties
+                            const newId = 'NEW_' + crypto.randomUUID();
+                            layer.feature = {
+                                type: 'Feature',
+                                properties: {
+                                    id: newId,
+                                    isNew: true,
+                                    name: newFieldForm.value.name,
+                                    folder_name: newFieldForm.value.folder
+                                }
+                            };
+                            
+                            // Listen to click so we can select it later
+                            layer.on('click', () => { handleLayerClick(layer); });
+                            
+                            // Add to our main group so we can manage it
+                            fieldLayerGroup.value.addLayer(layer);
+
+                            // Geoman specific: update geometry when edited
+                            layer.on('pm:edit', () => {
+                                if (layer.feature && layer.feature.properties.id === selectedFieldId.value) {
+                                    handleLayerClick(layer);
+                                }
+                            });
+
+                            // Geoman specific: update geometry when dragged
+                            layer.on('pm:dragend', () => {
+                                if (layer.feature && layer.feature.properties.id === selectedFieldId.value) {
+                                    handleLayerClick(layer);
+                                }
+                            });
+
+                            // Select it immediately and let it compute bounds/areas
+                            await handleLayerClick(layer);
+
+                            // Force save as insert to backend
+                            await saveField();
                         });
                     }
-
-                    // Draw Events
-                    map.value.on(L.Draw.Event.CREATED, (e) => {
-                        const layer = e.layer;
-                        // Give it the preconfigured name and folder from our UI dialog
-                        const newId = 'NEW_' + Date.now();
-                        layer.feature = {
-                            properties: {
-                                id: newId,
-                                isNew: true,
-                                name: newFieldForm.value.name,
-                                folder_name: newFieldForm.value.folder
-                            }
-                        };
-                        layer.on('click', () => { handleLayerClick(layer); });
-                        fieldLayerGroup.value.addLayer(layer);
-
-                        // Select it immediately
-                        handleLayerClick(layer);
-
-                        // Wait a tick for polygon binding, then auto save
-                        nextTick(() => {
-                            saveField();
-                        });
-                    });
-
-                    map.value.on(L.Draw.Event.EDITED, (e) => {
-                        e.layers.eachLayer(layer => {
-                            if (layer.feature && layer.feature.properties.id === selectedFieldId.value) {
-                                // If the currently selected layer was edited, recalc
-                                handleLayerClick(layer);
-                            }
-                        });
-                    });
-
-                    map.value.on(L.Draw.Event.DELETED, (e) => {
-                        // Check if deleted layer is the selected one
-                        e.layers.eachLayer(layer => {
-                            if (layer.feature && layer.feature.properties.id === selectedFieldId.value) {
-                                selectedFieldId.value = null;
-                            }
-                        });
-                    });
 
                     map.value.on('zoomend', () => {
                         updateZoomClass();
@@ -1002,8 +1005,8 @@
                         const coreData = await coreRes.json();
 
                         // Assign real DB ID if newly created
-                        if (isNewField && coreData.result && coreData.result.lastInsertRowid) {
-                            fieldProps.value.id = coreData.result.lastInsertRowid;
+                        if (isNewField && coreData.insertedId) {
+                            fieldProps.value.id = coreData.insertedId;
                             selectedFieldId.value = fieldProps.value.id;
                         }
 
@@ -1203,8 +1206,12 @@
                         return alert("名称を入力してください");
                     }
                     createDialog.value = false;
-                    if (polygonDrawer) {
-                        polygonDrawer.enable();
+                    if (map.value) {
+                        map.value.pm.enableDraw('Polygon', {
+                            snappable: true,
+                            snapDistance: 20,
+                            allowSelfIntersection: false
+                        });
                         snackbar.value = { show: true, color: 'info', text: 'マップ上で図形を描画してください' };
                     }
                 };
@@ -1212,7 +1219,7 @@
                 const toggleEditShape = () => {
                     if (!selectedLayer.value) return;
                     if (isEditingShape.value) {
-                        selectedLayer.value.editing.disable();
+                        selectedLayer.value.pm.disable();
                         isEditingShape.value = false;
 
                         // Fake a re-click to fetch fresh geometry
@@ -1221,7 +1228,9 @@
                         handleAutoSave();
                         snackbar.value = { show: true, color: 'success', text: '形状を確定し、保存しました' };
                     } else {
-                        selectedLayer.value.editing.enable();
+                        selectedLayer.value.pm.enable({
+                            allowSelfIntersection: false,
+                        });
                         isEditingShape.value = true;
                     }
                 };
