@@ -458,8 +458,8 @@
                         // Draw Events (Geoman)
                         lmapInstance.on('pm:create', async (e) => {
                             const layer = e.layer;
-                            // Prefigure feature properties
-                            const newId = 'NEW_' + crypto.randomUUID();
+                            // Prefigure feature properties securely
+                            const newId = 'NEW_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
                             layer.feature = {
                                 type: 'Feature',
                                 properties: {
@@ -975,8 +975,14 @@
                     try {
                         // 1. Convert GeoJSON back to custom string format for DB
                         // Format: "138.21,36.73,0 138.22,36.73,0 ..."
-                        const ring = currentPolygonJson.value.geometry.coordinates[0];
-                        const coordsString = ring.map(c => `${c[0]},${c[1]},0`).join(' ');
+                        let coordsString;
+                        try {
+                            const ring = currentPolygonJson.value.geometry.coordinates[0];
+                            coordsString = ring.map(c => `${c[0]},${c[1]},0`).join(' ');
+                        } catch(e) {
+                            console.error("Coordinate parse error:", e);
+                            throw new Error("図形の座標パースに失敗しました");
+                        }
 
                         const isNewField = !fieldProps.value.id || fieldProps.value.id.toString().startsWith('NEW_');
 
@@ -1003,9 +1009,13 @@
                             body: JSON.stringify(corePayload)
                         });
                         const coreData = await coreRes.json();
+                        
+                        if (!coreData.success) {
+                            throw new Error(coreData.error || "データ保存APIがエラーを返しました");
+                        }
 
                         // Assign real DB ID if newly created
-                        if (isNewField && coreData.insertedId) {
+                        if (isNewField && coreData.insertedId !== undefined) {
                             fieldProps.value.id = coreData.insertedId;
                             selectedFieldId.value = fieldProps.value.id;
                         }
