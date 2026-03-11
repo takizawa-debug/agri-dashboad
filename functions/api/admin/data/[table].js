@@ -57,11 +57,15 @@ export async function onRequest(context) {
             const values = Object.values(body);
             const placeholders = keys.map(() => '?').join(', ');
 
-            const result = await env.DB.prepare(
-                `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`
-            ).bind(...values).run();
+            const queryStr = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) RETURNING id`;
+            const result = await env.DB.prepare(queryStr).bind(...values).first();
 
-            return Response.json({ success: true, result, insertedId: generatedId || result.meta.last_row_id });
+            let finalId = generatedId;
+            if (!finalId && result && result.id) {
+                finalId = result.id;
+            }
+
+            return Response.json({ success: true, result, insertedId: finalId });
         }
 
         if (request.method === 'PUT') {
