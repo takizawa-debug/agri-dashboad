@@ -2084,11 +2084,15 @@
                         ];
                     } else if (tableId === 'fields') {
                         crudDialog.value.fields = [
-                            { title: '圃場・施設名', key: 'name' },
+                            { title: '圃場・施設名 (必須)', key: 'name' },
+                            { title: 'フォルダ', key: 'folder_name' },
+                            { title: '面積(㎡)', key: 'area_total' },
+                            { title: '標高(m)', key: 'rep_elev' },
                             { title: '畝幅(cm)', key: 'ridge_width' },
                             { title: '畝間(cm)', key: 'ridge_distance' },
                             { title: '条数', key: 'number_of_rows' },
-                            { title: '株間(cm)', key: 'plant_distance' }
+                            { title: '株間(cm)', key: 'plant_distance' },
+                            { title: '備考', key: 'notes' }
                         ];
                     } else {
                         crudDialog.value.fields = config.headers;
@@ -2103,7 +2107,29 @@
                     isSaving.value = true;
                     try {
                         if (crudDialog.value.table === 'fields') {
+                            const method = crudDialog.value.isEdit ? 'PUT' : 'POST';
+                            const fieldPayload = {
+                                id: crudDialog.value.item.id,
+                                name: crudDialog.value.item.name,
+                                folder_name: crudDialog.value.item.folder_name,
+                                area_total: crudDialog.value.item.area_total,
+                                memo: crudDialog.value.item.memo
+                            };
+                            const fieldsRes = await fetch(`/api/admin/data/fields`, {
+                                method: method,
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(fieldPayload)
+                            });
+                            
+                            const fieldsData = await fieldsRes.json();
+                            if (!fieldsData.success) {
+                                throw new Error(fieldsData.error || '圃場本体の保存に失敗しました');
+                            }
+                            
+                            // Save design settings (畝幅 etc)
                             await saveInlineFieldDesignAction(crudDialog.value.item);
+                            
+                            snackbar.value = { show: true, color: 'success', text: '保存しました' };
                             crudDialog.value.show = false;
                             loadData();
                             return;

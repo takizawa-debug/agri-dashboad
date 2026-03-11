@@ -481,78 +481,56 @@
                                     <!-- Data Rows (Crops) -->
                                     <template v-for="(plan, pIdx) in filteredScheduleData" :key="plan.planId">
                                         <!-- Parent Crop Row -->
-                                        <div class="gantt-row-container"
-                                            style="background-color: #f0fdf4; border-bottom: 2px solid #e5e7eb;">
-                                            <div class="gantt-label-fixed"
-                                                style="background-color: #f0fdf4; z-index: 35; align-items: flex-start; padding: 12px 16px;">
-                                                <div
-                                                    class="font-weight-bold text-body-2 text-green-darken-3 d-flex align-center w-100 mb-1">
-                                                    <v-icon size="small"
-                                                        class="mr-1 text-green-darken-2">mdi-leaf</v-icon>
+                                        <div class="gantt-row-container" style="background-color: #f0fdf4; border-bottom: 2px solid #e5e7eb;">
+                                            <div class="gantt-label-fixed" style="background-color: #f0fdf4; z-index: 35; align-items: flex-start; padding: 12px 16px;">
+                                                <div class="font-weight-bold text-body-2 text-green-darken-3 d-flex align-center w-100 mb-1">
+                                                    <v-icon size="small" class="mr-1 text-green-darken-2">mdi-leaf</v-icon>
                                                     {{ formatCropTitle(plan.cropName) }}
-                                                    <span class="text-caption text-grey-darken-1 ml-2">{{
-                                                        formatCropSubtitle(plan.cropName) }}</span>
+                                                    <span class="text-caption text-grey-darken-1 ml-2">{{ formatCropSubtitle(plan.cropName) }}</span>
                                                 </div>
-                                                <div class="text-caption text-grey-darken-2 d-flex align-center flex-wrap"
-                                                    style="line-height: 1.2;">
+                                                <div class="text-caption text-grey-darken-2 d-flex align-center flex-wrap" style="line-height: 1.2;">
                                                     <v-icon size="x-small" class="mr-1">mdi-map-marker</v-icon>
                                                     <template v-for="(f, fIdx) in plan.fields" :key="fIdx">
-                                                        <span style="text-decoration: underline; cursor:pointer;"
-                                                            @click.stop="openFieldModal(f)">{{ f || '未定' }}</span>
+                                                        <span style="text-decoration: underline; cursor:pointer;" @click.stop="openFieldModal(f)">{{ f || '未定' }}</span>
                                                         <span v-if="fIdx < plan.fields.length - 1" class="mx-1">,</span>
                                                     </template>
                                                 </div>
                                             </div>
                                             <div class="gantt-days">
-                                                <div v-for="d in timelineDates" :key="d.fullDateStr"
-                                                    class="gantt-day-bg" :class="getDayClass(d)"></div>
+                                                <div v-for="d in timelineDates" :key="d.fullDateStr" class="gantt-day-bg" :class="getDayClass(d)"></div>
                                             </div>
                                         </div>
-
+                                        
                                         <!-- Child Process Rows (ALWAYS VISIBLE) -->
-                                        <div v-for="(proc, procIdx) in plan.processes" :key="proc.procId"
-                                            class="gantt-row-container" style="height: 44px;">
+                                        <div v-for="(proc, procIdx) in plan.processes" :key="proc.procId" class="gantt-row-container" style="height: 44px;">
                                             <div class="gantt-label-fixed justify-start align-center pl-6 pr-2">
-                                                <div class="text-caption font-weight-bold text-grey-darken-3 text-truncate w-100 d-flex align-center"
-                                                    :title="proc.minorCat">
-                                                    <v-icon size="x-small"
-                                                        class="mr-2 text-grey-lighten-1">mdi-subdirectory-arrow-right</v-icon>
+                                                <div class="text-caption font-weight-bold text-grey-darken-3 text-truncate w-100 d-flex align-center" :title="proc.minorCat">
+                                                    <v-icon size="x-small" class="mr-2 text-grey-lighten-1">mdi-subdirectory-arrow-right</v-icon>
                                                     {{ proc.minorCat || '作業未定' }}
-                                                    <div class="ml-auto text-grey d-flex flex-column align-end"
-                                                        style="font-size: 0.65em; line-height: 1.1;">
-                                                        <span v-if="proc.startOffset === proc.endOffset">起算日+{{
-                                                            proc.startOffset }}日</span>
-                                                        <span v-else>起算日+{{ proc.startOffset }}日 〜 +{{ proc.endOffset
-                                                            }}日</span>
-                                                        <span
-                                                            v-if="proc.startOffset !== proc.endOffset && proc.interval > 0">
-                                                            {{ proc.interval }}日間隔 (計{{ Math.floor((proc.endOffset -
-                                                            proc.startOffset) / proc.interval) + 1 }}回)
-                                                        </span>
+                                                    <div v-if="proc.startOffset !== proc.endOffset && proc.interval > 0" class="ml-auto text-grey" style="font-size: 0.7em;">
+                                                        (計{{ Math.floor((proc.endOffset - proc.startOffset) / proc.interval) + 1 }}回)
                                                     </div>
                                                 </div>
                                             </div>
                                             <div class="gantt-days" style="position: relative;">
-                                                <div v-for="d in timelineDates" :key="d.fullDateStr"
-                                                    class="gantt-day-bg" :class="getDayClass(d)"></div>
-
+                                                <div v-for="d in timelineDates" :key="d.fullDateStr" class="gantt-day-bg" :class="getDayClass(d)"></div>
+                                                
                                                 <!-- Span Line connecting iterations -->
                                                 <div class="gantt-task-overlay"
                                                     v-if="proc.startOffset !== proc.endOffset && getProcessLayout(proc).width > 0 && getProcessLayout(proc).left >= -60"
                                                     style="height: 2px; top: 21px; pointer-events: none; opacity: 0.4; border-radius: 0;"
-                                                    :style="{ left: (getProcessLayout(proc).left + 28) + 'px', width: (getProcessLayout(proc).width - 56) + 'px', background: 'gray' }">
-                                                </div>
+                                                    :style="{ left: (getProcessLayout(proc).left + 28) + 'px', width: (getProcessLayout(proc).width - 56) + 'px', background: 'gray' }"
+                                                ></div>
 
                                                 <!-- Iteration Blocks -->
                                                 <template v-for="i in getProcessIterations(proc)" :key="i">
                                                     <div class="gantt-task-overlay shadow-sm"
                                                         v-if="getIterationLayout(proc, i).left >= -60"
-                                                        :style="{ left: getIterationLayout(proc, i).left + 'px', top: '8px', width: '56px', height: '28px' }">
-                                                        <div class="task-bar-content text-center d-flex align-center justify-center font-weight-bold shadow-sm"
-                                                            :class="getTaskColorClass(proc)"
-                                                            style="color: white; font-size: 0.65em; border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1);">
-                                                            <div class="text-truncate px-1" style="max-width: 54px;">{{
-                                                                proc.minorCat }}</div>
+                                                        :style="{ left: getIterationLayout(proc, i).left + 'px', top: '8px', width: '56px', height: '28px' }"
+                                                        >
+                                                        <div class="task-bar-content text-center d-flex align-center justify-center font-weight-bold shadow-sm" 
+                                                             :class="getTaskColorClass(proc)" style="color: white; font-size: 0.65em; border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1);">
+                                                            <div class="text-truncate px-1" style="max-width: 54px;">{{ proc.minorCat }}</div>
                                                         </div>
                                                     </div>
                                                 </template>
@@ -1026,14 +1004,14 @@
                     return '';
                 };
 
-
+                
                 const getProcessIterations = (proc) => {
                     if (!proc.interval || proc.interval <= 0) return [0];
                     const diff = proc.endOffset - proc.startOffset;
                     if (diff <= 0) return [0];
                     const count = Math.floor(diff / proc.interval) + 1;
                     let res = [];
-                    for (let i = 0; i < count; i++) res.push(i);
+                    for(let i=0; i<count; i++) res.push(i);
                     return res;
                 };
 
@@ -1043,35 +1021,35 @@
                     const d1Date = new Date(d1Str);
                     const MS_PER_DAY = 1000 * 60 * 60 * 24;
                     const utc1 = Date.UTC(d1Date.getFullYear(), d1Date.getMonth(), d1Date.getDate());
-
+                    
                     let sDate = new Date(proc.startDate);
                     // Handle iterating via Javascript Date math
                     sDate.setDate(sDate.getDate() + (iterationIdx * proc.interval));
-
+                    
                     const utcTarget = Date.UTC(sDate.getFullYear(), sDate.getMonth(), sDate.getDate());
                     const leftDays = Math.floor((utcTarget - utc1) / MS_PER_DAY);
-
-                    return { left: leftDays * 60 + 2 };
+                    
+                    return { left: leftDays * 60 + 2 }; 
                 };
 
                 const getProcessLayout = (proc) => {
                     if (!timelineDates.value || timelineDates.value.length === 0) return { left: 0, width: 0 };
-
+                    
                     const d1Str = timelineDates.value[0].fullDateStr;
                     // convert to local midnight time to avoid timezone drift
                     const d1Date = new Date(d1Str);
                     const sDate = new Date(proc.startDate);
                     const eDate = new Date(proc.endDate);
-
+                    
                     const MS_PER_DAY = 1000 * 60 * 60 * 24;
                     // We use UTC trick to get exact day diff
                     const utc1 = Date.UTC(d1Date.getFullYear(), d1Date.getMonth(), d1Date.getDate());
                     const utc2 = Date.UTC(sDate.getFullYear(), sDate.getMonth(), sDate.getDate());
                     const utc3 = Date.UTC(eDate.getFullYear(), eDate.getMonth(), eDate.getDate());
-
+                    
                     const leftDays = Math.floor((utc2 - utc1) / MS_PER_DAY);
                     const widthDays = Math.floor((utc3 - utc2) / MS_PER_DAY) + 1;
-
+                    
                     return {
                         left: leftDays * 60,
                         width: Math.max(widthDays, 1) * 60
