@@ -6,3 +6,7 @@ pages_build_output_dir = "public"
 binding = "DB"
 database_name = "agri-db"
 database_id = "18722ebf-2f7b-4f67-b7f7-2bab869e72bf" 
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "agri-images"

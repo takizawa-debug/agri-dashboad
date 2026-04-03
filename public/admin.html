@@ -9,6 +9,7 @@
         rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/vuetify@3.4.0/dist/vuetify.min.css" rel="stylesheet">
+    <link href="/css/common.css" rel="stylesheet">
     <style>
         body {
             font-family: 'Noto Sans JP', sans-serif;
@@ -119,10 +120,40 @@
     <div id="app">
         <v-app>
             <v-app-bar color="blue-darken-3">
+                <v-app-bar-nav-icon @click="drawer = !drawer"></v-app-bar-nav-icon>
                 <v-app-bar-title>農業工程 マスタデータ管理</v-app-bar-title>
                 <v-spacer></v-spacer>
                 <v-btn icon @click="loadData"><v-icon>mdi-refresh</v-icon></v-btn>
             </v-app-bar>
+
+            <!-- Navigation Drawer -->
+            <v-navigation-drawer v-model="drawer" temporary>
+                <v-list-item class="pa-4" style="background: linear-gradient(135deg, #1565C0, #1E88E5);">
+                    <template v-slot:prepend>
+                        <v-icon color="white" size="28">mdi-sprout</v-icon>
+                    </template>
+                    <v-list-item-title class="text-white font-weight-bold text-body-1">農業工程管理</v-list-item-title>
+                    <v-list-item-subtitle class="text-blue-lighten-3 text-caption">ナビゲーション</v-list-item-subtitle>
+                </v-list-item>
+                <v-divider></v-divider>
+                <v-list density="comfortable" nav class="pa-2">
+                    <v-list-item href="/" prepend-icon="mdi-format-list-checks" title="タスク管理"
+                        subtitle="日々のタスクと作業記録" color="green-darken-3"></v-list-item>
+                    <v-list-item href="/admin.html" prepend-icon="mdi-cog" title="マスタ管理"
+                        subtitle="品目・工程・圃場の設定" color="blue-darken-3" active></v-list-item>
+                    <v-list-item href="/map.html" prepend-icon="mdi-map" title="圃場マップ"
+                        subtitle="圃場の位置と区画を確認" color="teal-darken-3"></v-list-item>
+                    <v-divider class="my-1"></v-divider>
+                    <v-list-subheader>外部ツール</v-list-subheader>
+                    <v-list-item href="https://mimizuya-meter.takizawa-0fe.workers.dev/" target="_blank"
+                        prepend-icon="mdi-thermometer" title="温度管理"
+                        subtitle="ハウス内環境モニタリング" color="orange-darken-2">
+                        <template v-slot:append>
+                            <v-icon size="small" color="grey">mdi-open-in-new</v-icon>
+                        </template>
+                    </v-list-item>
+                </v-list>
+            </v-navigation-drawer>
 
             <v-main class="bg-grey-lighten-4">
                 <v-container>
@@ -368,6 +399,10 @@
                                             <v-tab v-for="folder in uniqueFieldFolders" :key="folder" :value="folder">{{
                                                 folder }}</v-tab>
                                         </v-tabs>
+
+                                        <v-select v-model="fieldsNameFilter" :items="uniqueFieldBaseNames"
+                                            density="compact" hide-details variant="underlined"
+                                            style="max-width: 150px;" class="ml-4" label="圃場名フィルター"></v-select>
 
                                         <v-select v-model="fieldsVarietyFilter" :items="uniqueFieldVarieties"
                                             density="compact" hide-details variant="underlined"
@@ -1242,6 +1277,59 @@
                 </v-card>
             </v-dialog>
 
+            <!-- Calendar Detail Dialog -->
+            <v-dialog v-model="calendarDetail.show" max-width="700">
+                <v-card rounded="lg">
+                    <v-card-title class="d-flex align-center" :class="'bg-' + (calendarDetail.color || 'teal-darken-2')">
+                        <v-icon class="mr-2 text-white">mdi-calendar-text</v-icon>
+                        <span class="text-white font-weight-bold">{{ calendarDetail.title }}</span>
+                        <v-spacer></v-spacer>
+                        <v-btn icon="mdi-close" variant="text" size="small" class="text-white" @click="calendarDetail.show = false"></v-btn>
+                    </v-card-title>
+                    <v-card-text class="pt-4">
+                        <div class="text-body-2 text-grey-darken-1 mb-3">
+                            <v-icon size="small" class="mr-1">mdi-calendar</v-icon>{{ calendarDetail.date }}
+                        </div>
+                        <div v-if="calendarDetail.workDetails" class="text-body-2 mb-3 pa-2 bg-grey-lighten-4 rounded">
+                            <v-icon size="small" class="mr-1">mdi-text-box-outline</v-icon>{{ calendarDetail.workDetails }}
+                        </div>
+                        <div v-for="(item, i) in calendarDetail.details" :key="i" class="mb-3 pa-3 rounded border">
+                            <div class="d-flex align-center mb-2">
+                                <v-icon size="small" color="green-darken-2" class="mr-1">mdi-sprout</v-icon>
+                                <span class="font-weight-bold text-body-1">{{ item.variety }}</span>
+                                <v-chip v-if="item.cropType" size="x-small" class="ml-2" color="grey">{{ item.cropType }}</v-chip>
+                            </div>
+                            <div class="text-body-2 mb-2" style="cursor:pointer" @click="openMapModal([item.field])">
+                                <v-icon size="x-small" class="mr-1" color="blue">mdi-map-marker</v-icon>
+                                <span class="text-blue text-decoration-underline">{{ item.field }}</span>
+                            </div>
+                            <v-row dense class="text-caption">
+                                <v-col v-if="item.maxPlantable" cols="6" sm="4">
+                                    <div class="text-grey">定植数</div>
+                                    <div class="font-weight-bold">{{ item.maxPlantable }} 株</div>
+                                </v-col>
+                                <v-col v-if="item.sowCount" cols="6" sm="4">
+                                    <div class="text-grey">播種数</div>
+                                    <div class="font-weight-bold">{{ item.sowCount }} 粒</div>
+                                </v-col>
+                                <v-col v-if="item.nurseryTrays" cols="6" sm="4">
+                                    <div class="text-grey">トレイ数</div>
+                                    <div class="font-weight-bold">{{ item.nurseryTrays }} 枚</div>
+                                </v-col>
+                                <v-col v-if="item.mulchLength" cols="6" sm="4">
+                                    <div class="text-grey">マルチ長</div>
+                                    <div class="font-weight-bold">{{ item.mulchLength }} m</div>
+                                </v-col>
+                                <v-col v-if="item.yieldAmount" cols="6" sm="4">
+                                    <div class="text-grey">収穫見込</div>
+                                    <div class="font-weight-bold">{{ item.yieldAmount }} {{ item.yieldUnit }}</div>
+                                </v-col>
+                            </v-row>
+                        </div>
+                    </v-card-text>
+                </v-card>
+            </v-dialog>
+
             <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000">
                 {{ snackbar.text }}
             </v-snackbar>
@@ -1256,16 +1344,7 @@
             z-index: 2;
         }
 
-        /* FullCalendar Customization */
-        .tasks-calendar-container .fc-event {
-            border: none !important;
-            margin-bottom: 2px;
-            border-radius: 4px;
-        }
-
-        .tasks-calendar-container .fc-daygrid-event-dot {
-            display: none;
-        }
+        /* FullCalendar customizations now in /css/common.css */
     </style>
 
     <!-- Scripts -->
@@ -1274,7 +1353,11 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar-scheduler@6.1.11/index.global.min.js"></script>
+    <script src="/js/utils.js"></script>
+    <script src="/js/color-map.js"></script>
+    <script src="/js/api.js"></script>
+    <script src="/js/calendar.js"></script>
     <script>
         const { createApp, ref, onMounted, watch } = Vue;
         const vuetify = Vuetify.createVuetify();
@@ -1284,6 +1367,7 @@
                 const urlParams = new URLSearchParams(window.location.search);
                 const initialTab = urlParams.get('tab') || 'tasks';
                 const tab = ref(initialTab);
+                const drawer = ref(false);
 
                 watch(tab, (newTab) => {
                     const url = new URL(window.location);
@@ -1296,6 +1380,13 @@
                 const processTab = ref('all');
                 const fieldsTab = ref('耕作地');
                 const fieldsVarietyFilter = ref('すべて');
+                const fieldsNameFilter = ref('すべて');
+
+                // Extract base name from field name by removing trailing numbers/identifiers
+                const getFieldBaseName = (name) => {
+                    if (!name) return '';
+                    return name.replace(/[①-⑳0-9０-９A-Za-z\-_]+$/, '').trim() || name;
+                };
                 const loading = ref(false);
                 const tableData = ref({});
                 const snackbar = ref({ show: false, color: '', text: '' });
@@ -1304,6 +1395,7 @@
                 const selectedFields = ref([]);
                 const bulkEditDialog = ref({ show: false, item: {} });
                 const mapModal = ref({ show: false, fields: [] });
+                const calendarDetail = ref({ show: false, title: '', date: '', color: '', details: [] });
 
                 const tableConfigs = [
                     {
@@ -1482,10 +1574,45 @@
                 const materialOptions = Vue.computed(() => [...new Set((tableData.value['material_master'] || []).map(m => m.product_name).filter(Boolean))]);
                 const equipmentOptions = Vue.computed(() => [...new Set((tableData.value['equipment_master'] || []).map(e => e.name).filter(Boolean))]);
 
+                // Cached sort order for process plans - prevents re-sorting during inline editing
+                const processPlansOrder = ref([]); // stores ordered IDs
                 const filteredProcessPlans = Vue.computed(() => {
                     if (!processTab.value) return [];
                     const data = tableData.value['process_master'] || [];
-                    return data.filter(i => i && i.variety_name === processTab.value).sort((a, b) => (Number(a.base_day_offset) || 0) - (Number(b.base_day_offset) || 0));
+                    const filtered = data.filter(i => i && i.variety_name === processTab.value);
+                    
+                    // If we have a cached order, use it
+                    if (processPlansOrder.value.length > 0) {
+                        const orderMap = new Map(processPlansOrder.value.map((id, idx) => [id, idx]));
+                        const ordered = [];
+                        const newItems = [];
+                        filtered.forEach(item => {
+                            if (orderMap.has(item.id)) {
+                                ordered.push(item);
+                            } else {
+                                newItems.push(item); // newly added items go to end
+                            }
+                        });
+                        ordered.sort((a, b) => orderMap.get(a.id) - orderMap.get(b.id));
+                        return [...ordered, ...newItems];
+                    }
+                    
+                    // No cached order: sort by base_day_offset and cache
+                    const sorted = [...filtered].sort((a, b) => (Number(a.base_day_offset) || 0) - (Number(b.base_day_offset) || 0));
+                    processPlansOrder.value = sorted.map(i => i.id);
+                    return sorted;
+                });
+
+                // Rebuild sort order when tab changes or data is freshly loaded
+                const rebuildProcessOrder = () => {
+                    const data = tableData.value['process_master'] || [];
+                    const filtered = data.filter(i => i && i.variety_name === processTab.value);
+                    const sorted = [...filtered].sort((a, b) => (Number(a.base_day_offset) || 0) - (Number(b.base_day_offset) || 0));
+                    processPlansOrder.value = sorted.map(i => i.id);
+                };
+
+                Vue.watch(processTab, () => {
+                    processPlansOrder.value = []; // reset to trigger fresh sort
                 });
 
                 const formatVarietySuffix = (name) => {
@@ -1656,6 +1783,16 @@
 
 
 
+                const uniqueFieldBaseNames = Vue.computed(() => {
+                    const data = (tableData.value['fields'] || []).filter(i => i.folder_name === fieldsTab.value);
+                    const baseSet = new Set();
+                    data.forEach(i => {
+                        const base = getFieldBaseName(i.name);
+                        if (base) baseSet.add(base);
+                    });
+                    return ['すべて', ...Array.from(baseSet).sort()];
+                });
+
                 const filteredFieldsTableData = Vue.computed(() => {
                     return (tableData.value['fields'] || [])
                         .filter(i => i.folder_name === fieldsTab.value)
@@ -1664,10 +1801,14 @@
                             if (fieldsVarietyFilter.value === 'すべて') return true;
                             if (fieldsVarietyFilter.value === '未作付') return i.variety_indicator === '';
                             return i.variety_indicator === fieldsVarietyFilter.value;
+                        })
+                        .filter(i => {
+                            if (fieldsNameFilter.value === 'すべて') return true;
+                            return getFieldBaseName(i.name) === fieldsNameFilter.value;
                         });
                 });
 
-                Vue.watch([fieldsTab, fieldsVarietyFilter], () => {
+                Vue.watch([fieldsTab, fieldsVarietyFilter, fieldsNameFilter], () => {
                     selectedFields.value = []; // reset selection on tab or filter change
                 });
 
@@ -1809,58 +1950,259 @@
                         calendarInstance.destroy();
                     }
 
-                    const events = [];
-                    Object.keys(aggregatedTaskSummaries.value).forEach(itemName => {
-                        const group = aggregatedTaskSummaries.value[itemName];
-                        const baseColor = cropBaseColorMap.value[itemName] || 'grey';
+                    const plans = tableData.value['season_plans'] || [];
+                    const varieties = tableData.value['varieties_master'] || [];
+                    const processMasterData = tableData.value['process_master'] || [];
 
-                        group.plans.forEach(summary => {
-                            summary.dateEvents.forEach(ev => {
-                                let titleStr = ev.name;
-                                if (summary.plan.variety_name) {
-                                    const pParts = summary.plan.variety_name.split('_');
-                                    if (pParts.length > 1) {
-                                        titleStr = `【${pParts[1]}】${ev.name}`;
-                                    } else {
-                                        titleStr = `【${summary.plan.variety_name}】${ev.name}`;
-                                    }
+                    const varietyMap = {};
+                    varieties.forEach(v => varietyMap[v.auto_name] = v);
+
+                    const processMap = {};
+                    processMasterData.forEach(p => {
+                        if (!processMap[p.variety_name]) processMap[p.variety_name] = [];
+                        processMap[p.variety_name].push(p);
+                    });
+
+                    const addDays = AgriUtils.addDays;
+                    const toDateStr = AgriUtils.toDateStr;
+
+                    // Step 1: collect raw events with metadata
+                    const rawEvents = [];
+                    const fields = tableData.value['fields'] || [];
+                    const fieldMap = {};
+                    fields.forEach(f => fieldMap[f.name] = f);
+
+                    plans.forEach(plan => {
+                        if (!plan.base_date) return;
+                        const baseDate = new Date(plan.base_date);
+                        if (isNaN(baseDate.getTime())) return;
+
+                        const vMaster = varietyMap[plan.variety_name] || {};
+                        const itemName = vMaster.item_name || plan.variety_name.split('_')[0];
+                        const baseColor = cropBaseColorMap.value[itemName] || 'grey';
+                        const pParts = (plan.variety_name || '').split('_');
+                        const varietyLabel = pParts.length > 1 ? pParts[1] : plan.variety_name;
+                        const cropType = pParts.length > 2 ? pParts[2] : '';
+                        const fMaster = fieldMap[plan.field_name] || {};
+                        const maxPlantable = fMaster.max_plantable ? parseInt(fMaster.max_plantable) : 0;
+
+                        // Calculate quantities
+                        const seedRatio = vMaster.seed_ratio ? parseFloat(vMaster.seed_ratio) : 0;
+                        const yieldRatio = vMaster.yield_ratio ? parseFloat(vMaster.yield_ratio) : 100;
+                        const seedsPerTray = parseInt(vMaster.seeds_per_tray) || 0;
+                        const plantDist = fMaster.plant_distance ? parseFloat(fMaster.plant_distance) : 0;
+                        const rows = fMaster.number_of_rows ? parseInt(fMaster.number_of_rows) : 1;
+                        const sowCount = seedRatio > 0 ? Math.ceil(maxPlantable * (seedRatio / 100)) : 0;
+                        const nurseryTrays = seedsPerTray > 0 ? Math.ceil(sowCount / seedsPerTray) : 0;
+                        const yieldAmount = Math.ceil(maxPlantable * (yieldRatio / 100));
+                        const mulchLength = Math.ceil((maxPlantable / (rows || 1)) * (plantDist / 100));
+
+                        const procs = processMap[plan.variety_name] || [];
+
+                        procs.forEach(pm => {
+                            const offset = parseInt(pm.base_day_offset) || 0;
+                            const endOffset = pm.base_day_end_offset != null && pm.base_day_end_offset !== '' ? parseInt(pm.base_day_end_offset) : null;
+                            const workName = pm.work_minor || pm.work_mid || '';
+
+                            const detail = {
+                                variety: varietyLabel,
+                                cropType: cropType,
+                                field: plan.field_name || '',
+                                maxPlantable,
+                                sowCount,
+                                nurseryTrays,
+                                mulchLength,
+                                yieldAmount,
+                                yieldUnit: vMaster.unit || '個',
+                                unitValue: pm.unit_value || '',
+                                unitName: pm.unit_name || '',
+                                materialName: pm.material_name || '',
+                                materialQty: pm.material_qty || '',
+                                materialUnit: pm.material_unit || '',
+                            };
+
+                            if (endOffset != null && endOffset !== offset) {
+                                for (let day = offset; day <= endOffset; day++) {
+                                    const d = addDays(baseDate, day);
+                                    rawEvents.push({
+                                        dateStr: toDateStr(d),
+                                        itemName, baseColor, workName,
+                                        workDetails: pm.work_details || '',
+                                        detail,
+                                        isFaded: false
+                                    });
                                 }
-                                events.push({
-                                    title: titleStr,
-                                    start: ev.rawDate,
-                                    allDay: true,
-                                    classNames: [`bg-${baseColor}`, `border-${baseColor}`, 'text-white', 'text-caption', 'px-1']
+                            } else {
+                                const exactDate = addDays(baseDate, offset);
+                                rawEvents.push({
+                                    dateStr: toDateStr(exactDate),
+                                    startStr: toDateStr(addDays(exactDate, -2)),
+                                    endStr: toDateStr(addDays(exactDate, 3)),
+                                    itemName, baseColor, workName,
+                                    workDetails: pm.work_details || '',
+                                    detail,
+                                    isFaded: true
                                 });
-                            });
+                            }
                         });
                     });
 
+                    // Step 2: group by date + itemName + workName
+                    const grouped = {};
+                    rawEvents.forEach(ev => {
+                        const key = `${ev.dateStr}__${ev.itemName}__${ev.workName}`;
+                        if (!grouped[key]) {
+                            grouped[key] = {
+                                dateStr: ev.dateStr,
+                                startStr: ev.startStr || ev.dateStr,
+                                endStr: ev.endStr || null,
+                                itemName: ev.itemName,
+                                baseColor: ev.baseColor,
+                                workName: ev.workName,
+                                workDetails: ev.workDetails,
+                                isFaded: ev.isFaded,
+                                details: []
+                            };
+                        }
+                        grouped[key].details.push(ev.detail);
+                        if (ev.isFaded) grouped[key].isFaded = true;
+                        if (ev.startStr && ev.startStr < grouped[key].startStr) grouped[key].startStr = ev.startStr;
+                        if (ev.endStr && (!grouped[key].endStr || ev.endStr > grouped[key].endStr)) grouped[key].endStr = ev.endStr;
+                    });
+
+                    // Build resources ordered by varieties_master appearance
+                    const itemOrder = [];
+                    (tableData.value['varieties_master'] || []).forEach(v => {
+                        if (v.item_name && !itemOrder.includes(v.item_name)) itemOrder.push(v.item_name);
+                    });
+                    const resourceSet = new Set();
+                    Object.values(grouped).forEach(g => resourceSet.add(g.itemName));
+                    const resources = [];
+                    // Add in master order first
+                    itemOrder.forEach(name => {
+                        if (resourceSet.has(name)) {
+                            resources.push({ id: name, title: name });
+                            resourceSet.delete(name);
+                        }
+                    });
+                    // Add any remaining
+                    resourceSet.forEach(name => resources.push({ id: name, title: name }));
+
+                    const events = Object.values(grouped).map(g => {
+                        const count = g.details.length;
+                        const title = g.workName + (count > 1 ? ` (${count})` : '');
+                        const classNames = [`bg-${g.baseColor}`, `border-${g.baseColor}`, 'text-white', 'text-caption', 'px-1'];
+                        if (g.isFaded) classNames.push('event-fade-edges');
+
+                        const startD = g.isFaded ? g.startStr : g.dateStr;
+                        // For non-range events, end = next day so it shows as 1-day bar
+                        let endD = g.endStr || null;
+                        if (!endD) {
+                            const sd = new Date(g.dateStr);
+                            endD = toDateStr(addDays(sd, 1));
+                        }
+
+                        return {
+                            title,
+                            resourceId: g.itemName,
+                            start: startD,
+                            end: endD,
+                            classNames,
+                            extendedProps: {
+                                itemName: g.itemName, workName: g.workName, dateStr: g.dateStr,
+                                color: g.baseColor, workDetails: g.workDetails, details: g.details
+                            }
+                        };
+                    });
+
+                    // Determine date range for timeline
+                    let minDate = null, maxDate = null;
+                    events.forEach(e => {
+                        const s = e.start;
+                        const en = e.end || e.start;
+                        if (!minDate || s < minDate) minDate = s;
+                        if (!maxDate || en > maxDate) maxDate = en;
+                    });
+                    if (!minDate) minDate = toDateStr(new Date());
+                    if (!maxDate) maxDate = toDateStr(addDays(new Date(), 180));
+
+
+                    // Japanese public holidays 2026 (from shared module)
+                    const holidaySet = AgriUtils.HOLIDAYS_2026;
+
+                    // Calculate total days for full-range view
+                    const totalDays = Math.ceil((new Date(maxDate) - new Date(minDate)) / (1000*60*60*24)) + 14;
+
                     calendarInstance = new FullCalendar.Calendar(el, {
-                        initialView: 'dayGridMonth',
+                        initialView: 'fullRange',
+                        initialDate: minDate,
+                        views: {
+                            fullRange: {
+                                type: 'resourceTimeline',
+                                duration: { days: totalDays },
+                                slotDuration: { days: 1 }
+                            }
+                        },
                         locale: 'ja',
+                        schedulerLicenseKey: 'CC-Attribution-NonCommercial-NoDerivatives',
+                        resources: resources,
                         events: events,
-                        contentHeight: 'auto',
+                        resourceAreaWidth: '100px',
+                        resourceAreaHeaderContent: '品目',
+                        slotMinWidth: 100,
+                        height: 'auto',
+                        slotLabelFormat: [
+                            { month: 'long' },
+                            { day: 'numeric', weekday: 'short' }
+                        ],
+                        nowIndicator: true,
                         headerToolbar: {
-                            left: 'prev,next today',
-                            center: 'title',
-                            right: 'dayGridMonth,timeGridWeek'
+                            left: 'today',
+                            center: '',
+                            right: ''
                         },
                         buttonText: {
-                            today: '今日',
-                            month: '月',
-                            week: '週'
+                            today: '今日に移動'
+                        },
+                        slotLabelClassNames: function(arg) {
+                            const d = arg.date;
+                            const ds = toDateStr(d);
+                            if (holidaySet.has(ds)) return ['fc-label-holiday'];
+                            if (d.getDay() === 0) return ['fc-label-sunday'];
+                            if (d.getDay() === 6) return ['fc-label-saturday'];
+                            return [];
+                        },
+                        slotLaneClassNames: function(arg) {
+                            const d = arg.date;
+                            const ds = toDateStr(d);
+                            if (holidaySet.has(ds)) return ['fc-slot-holiday'];
+                            if (d.getDay() === 0) return ['fc-slot-sunday'];
+                            if (d.getDay() === 6) return ['fc-slot-saturday'];
+                            return [];
+                        },
+                        eventClick: function(info) {
+                            info.jsEvent.preventDefault();
+                            const p = info.event.extendedProps;
+                            calendarDetail.value = {
+                                show: true,
+                                title: `${p.itemName}: ${p.workName}`,
+                                date: p.dateStr,
+                                color: p.color,
+                                workDetails: p.workDetails || '',
+                                details: p.details || []
+                            };
                         }
                     });
 
-                    // Render initially, even if dimensions are 0
                     calendarInstance.render();
 
-                    // Force a resize after the Vuetify transition is likely complete
+                    // Scroll to today after render
                     setTimeout(() => {
                         if (calendarInstance) {
                             calendarInstance.updateSize();
+                            calendarInstance.scrollToTime({ days: Math.ceil((new Date() - new Date(minDate)) / (1000*60*60*24)) - 3 });
                         }
-                    }, 400);
+                    }, 500);
                 };
 
 
@@ -2084,15 +2426,11 @@
                         ];
                     } else if (tableId === 'fields') {
                         crudDialog.value.fields = [
-                            { title: '圃場・施設名 (必須)', key: 'name' },
-                            { title: 'フォルダ', key: 'folder_name' },
-                            { title: '面積(㎡)', key: 'area_total' },
-                            { title: '標高(m)', key: 'rep_elev' },
+                            { title: '圃場・施設名', key: 'name' },
                             { title: '畝幅(cm)', key: 'ridge_width' },
                             { title: '畝間(cm)', key: 'ridge_distance' },
                             { title: '条数', key: 'number_of_rows' },
-                            { title: '株間(cm)', key: 'plant_distance' },
-                            { title: '備考', key: 'notes' }
+                            { title: '株間(cm)', key: 'plant_distance' }
                         ];
                     } else {
                         crudDialog.value.fields = config.headers;
@@ -2107,29 +2445,7 @@
                     isSaving.value = true;
                     try {
                         if (crudDialog.value.table === 'fields') {
-                            const method = crudDialog.value.isEdit ? 'PUT' : 'POST';
-                            const fieldPayload = {
-                                id: crudDialog.value.item.id,
-                                name: crudDialog.value.item.name,
-                                folder_name: crudDialog.value.item.folder_name,
-                                area_total: crudDialog.value.item.area_total,
-                                memo: crudDialog.value.item.memo
-                            };
-                            const fieldsRes = await fetch(`/api/admin/data/fields`, {
-                                method: method,
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify(fieldPayload)
-                            });
-                            
-                            const fieldsData = await fieldsRes.json();
-                            if (!fieldsData.success) {
-                                throw new Error(fieldsData.error || '圃場本体の保存に失敗しました');
-                            }
-                            
-                            // Save design settings (畝幅 etc)
                             await saveInlineFieldDesignAction(crudDialog.value.item);
-                            
-                            snackbar.value = { show: true, color: 'success', text: '保存しました' };
                             crudDialog.value.show = false;
                             loadData();
                             return;
@@ -2217,9 +2533,19 @@
                             total_plant_count: item.max_plantable
                         };
 
-                        // Using the new custom endpoint
-                        const res = await fetch(`/api/admin/field-design-upsert`, {
-                            method: 'POST',
+                        // Check if design already exists for this field
+                        const checkRes = await fetch('/api/admin/data/field_designs');
+                        const checkData = await checkRes.json();
+                        const existing = (checkData.data || []).find(d => d.name === payload.name);
+
+                        let method = 'POST';
+                        if (existing && existing.id) {
+                            method = 'PUT';
+                            payload.id = existing.id;
+                        }
+
+                        const res = await fetch('/api/admin/data/field_designs', {
+                            method,
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(payload)
                         });
@@ -2436,8 +2762,9 @@
                     openColorDialog, saveItemColor, saveInlineFieldDesignAction, saveInlineAction, saveNewInlineAction, renameCategory, deleteRecord, confirmDeleteRecord,
                     seasonPlanTab, newSeasonPlan, uniqueSeasonPlanTabs, availableVarietiesForTab, formatVarietySuffix, arableFields, facilityFields, filteredSeasonPlans, getFieldMaxPlantable, addSeasonPlan,
                     newProcessPlan, addProcessPlan, insertProcessPlanRow, filteredProcessPlans, workMinorListOptions, unitTypeOptions, unitNameOptions, materialOptions, equipmentOptions,
-                    mapModal, openMapModal, calendarEl, fieldVarietyMap, fieldsVarietyFilter, uniqueFieldVarieties,
-                    copyProcessDialog, executeCopyProcess, formatJsonColumn, addItemArray, removeItemArray, filteredFieldsTableData
+                    mapModal, openMapModal, calendarEl, calendarDetail, fieldVarietyMap, fieldsVarietyFilter, uniqueFieldVarieties, fieldsNameFilter, uniqueFieldBaseNames,
+                    copyProcessDialog, executeCopyProcess, formatJsonColumn, addItemArray, removeItemArray, filteredFieldsTableData,
+                    drawer
                 }
             }
         }).use(vuetify).mount('#app');

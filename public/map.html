@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>圃場マップ — 農業工程管理</title>
+    <meta name="description" content="圃場マップの閲覧（読み取り専用）">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/vuetify@3.4.0/dist/vuetify.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="/css/common.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans JP', sans-serif; margin: 0; }
+        #map-container {
+            height: calc(100vh - 64px);
+            width: 100%;
+            z-index: 1;
+        }
+        /* Tooltip Colors */
+        .tooltip-耕作地 { background-color: rgba(76, 175, 80, 0.85); color: white; border: 1px solid #2e7d32; font-weight: bold; font-size: 0.8rem; }
+        .tooltip-駐車場 { background-color: rgba(158, 158, 158, 0.85); color: white; border: 1px solid #757575; font-weight: bold; font-size: 0.8rem; }
+        .tooltip-その他施設 { background-color: rgba(255, 152, 0, 0.85); color: white; border: 1px solid #ef6c00; font-weight: bold; font-size: 0.8rem; }
+        .tooltip-草刈り対応 { background-color: rgba(139, 195, 74, 0.85); color: white; border: 1px solid #558b2f; font-weight: bold; font-size: 0.8rem; }
+        .tooltip-農業用ハウス { background-color: rgba(3, 169, 244, 0.85); color: white; border: 1px solid #0277bd; font-weight: bold; font-size: 0.8rem; }
+        /* Zoom Toggle Logic */
+        .map-zoomed-out .detail-label { display: none !important; }
+        .map-zoomed-in .group-label { display: none !important; }
+        .map-zoomed-out path.layer-parking { display: none !important; }
+        /* Allow clicks through per-field tooltips to reach polygons */
+        .leaflet-tooltip.detail-label { pointer-events: none !important; }
+
+        /* Detail Panel */
+        .field-detail-panel {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            z-index: 1000;
+            max-height: 55vh;
+            overflow-y: auto;
+            background: white;
+            border-radius: 16px 16px 0 0;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.25);
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .field-detail-panel.open {
+            transform: translateY(0);
+        }
+        .field-detail-panel .drag-handle {
+            width: 40px; height: 4px; background: #ccc; border-radius: 2px;
+            margin: 8px auto 4px;
+        }
+        .crop-chip {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 4px 12px; border-radius: 16px; font-size: 0.82rem; font-weight: 500;
+            margin: 2px;
+        }
+        .stat-card {
+            background: #f5f5f5; border-radius: 10px; padding: 10px 14px; text-align: center;
+        }
+        .stat-card .label { font-size: 0.7rem; color: #888; margin-bottom: 2px; }
+        .stat-card .value { font-size: 1.15rem; font-weight: 700; }
+
+        @media (min-width: 960px) {
+            .field-detail-panel {
+                top: 64px; bottom: 0; left: auto; right: 0;
+                width: 380px; max-height: none;
+                border-radius: 0;
+                transform: translateX(100%);
+                box-shadow: -4px 0 20px rgba(0,0,0,0.15);
+            }
+            .field-detail-panel.open {
+                transform: translateX(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app" v-cloak>
+        <v-app theme="light">
+            <v-app-bar color="teal-darken-3" elevation="2">
+                <v-app-bar-nav-icon @click="drawer = !drawer"></v-app-bar-nav-icon>
+                <v-app-bar-title class="font-weight-bold">
+                    <v-icon class="mr-2">mdi-map</v-icon>
+                    圃場マップ
+                </v-app-bar-title>
+                <v-spacer></v-spacer>
+                <!-- Layer filter (desktop) -->
+                <div class="d-none d-md-flex align-center mr-2">
+                    <v-checkbox v-for="l in layerOptions" :key="l.value" v-model="visibleLayers" :value="l.value"
+                        :label="l.label" hide-details density="compact" :color="l.color"
+                        :class="'mr-2 font-weight-bold text-' + l.color + '-darken-1'"
+                        @update:modelValue="renderFieldsOnMap(false)"></v-checkbox>
+                </div>
+            </v-app-bar>
+
+            <!-- Navigation Drawer -->
+            <v-navigation-drawer v-model="drawer" temporary>
+                <v-list-item class="pa-4" style="background: linear-gradient(135deg, #00695C, #00897B);">
+                    <template v-slot:prepend>
+                        <v-icon color="white" size="28">mdi-sprout</v-icon>
+                    </template>
+                    <v-list-item-title class="text-white font-weight-bold text-body-1">農業工程管理</v-list-item-title>
+                    <v-list-item-subtitle class="text-teal-lighten-3 text-caption">ナビゲーション</v-list-item-subtitle>
+                </v-list-item>
+                <v-divider></v-divider>
+                <v-list density="comfortable" nav class="pa-2">
+                    <v-list-item href="/" prepend-icon="mdi-format-list-checks" title="タスク管理"
+                        subtitle="日々のタスクと作業記録" color="green-darken-3"></v-list-item>
+                    <v-list-item href="/admin.html" prepend-icon="mdi-cog" title="マスタ管理"
+                        subtitle="品目・工程・圃場の設定" color="blue-darken-3"></v-list-item>
+                    <v-list-item href="/map.html" prepend-icon="mdi-map" title="圃場マップ"
+                        subtitle="圃場の位置と区画を確認" color="teal-darken-3" active></v-list-item>
+                    <v-divider class="my-1"></v-divider>
+                    <v-list-subheader>外部ツール</v-list-subheader>
+                    <v-list-item href="https://mimizuya-meter.takizawa-0fe.workers.dev/" target="_blank"
+                        prepend-icon="mdi-thermometer" title="温度管理"
+                        subtitle="ハウス内環境モニタリング" color="orange-darken-2">
+                        <template v-slot:append>
+                            <v-icon size="small" color="grey">mdi-open-in-new</v-icon>
+                        </template>
+                    </v-list-item>
+                </v-list>
+            </v-navigation-drawer>
+
+            <v-main style="padding:0">
+                <div id="map-container" ref="mapEl"></div>
+            </v-main>
+
+            <!-- Field Detail Panel (slide-up on mobile, slide-in on desktop) -->
+            <div class="field-detail-panel" :class="{ open: detailOpen }">
+                <div class="drag-handle"></div>
+                <div class="pa-4" v-if="selectedField">
+                    <!-- Header -->
+                    <div class="d-flex align-center justify-space-between mb-3">
+                        <div>
+                            <div class="text-h6 font-weight-bold">{{ selectedField.name }}</div>
+                            <v-chip size="small" :color="folderColor(selectedField.folder_name)" variant="tonal" class="mt-1">
+                                <v-icon start size="14">{{ folderIcon(selectedField.folder_name) }}</v-icon>
+                                {{ selectedField.folder_name }}
+                            </v-chip>
+                        </div>
+                        <v-btn icon variant="text" size="small" @click="detailOpen = false">
+                            <v-icon>mdi-close</v-icon>
+                        </v-btn>
+                    </div>
+
+                    <!-- Stats Grid -->
+                    <div class="d-flex gap-2 flex-wrap mb-4" style="gap:8px">
+                        <div class="stat-card flex-grow-1" v-if="selectedField.area_total">
+                            <div class="label">面積</div>
+                            <div class="value text-blue-darken-2">{{ Number(selectedField.area_total).toLocaleString() }}<small> ㎡</small></div>
+                        </div>
+                        <div class="stat-card flex-grow-1" v-if="selectedField.rep_elev">
+                            <div class="label">標高</div>
+                            <div class="value text-brown-darken-2">{{ selectedField.rep_elev }}<small> m</small></div>
+                        </div>
+                        <div class="stat-card flex-grow-1" v-if="selectedField.max_plantable">
+                            <div class="label">定植可能</div>
+                            <div class="value text-green-darken-3">{{ Number(selectedField.max_plantable).toLocaleString() }}<small> 本</small></div>
+                        </div>
+                    </div>
+
+                    <!-- Ridge Design Info -->
+                    <div v-if="selectedField.folder_name === '耕作地' && (selectedField.ridge_width || selectedField.number_of_rows)" class="mb-4">
+                        <div class="text-subtitle-2 font-weight-bold mb-2">
+                            <v-icon size="18" class="mr-1">mdi-sprout</v-icon>畝設計
+                        </div>
+                        <div class="d-flex gap-2 flex-wrap" style="gap:8px">
+                            <div class="stat-card flex-grow-1" v-if="selectedField.ridge_width">
+                                <div class="label">畝幅</div>
+                                <div class="value">{{ selectedField.ridge_width }}<small>cm</small></div>
+                            </div>
+                            <div class="stat-card flex-grow-1" v-if="selectedField.ridge_distance">
+                                <div class="label">畝間</div>
+                                <div class="value">{{ selectedField.ridge_distance }}<small>cm</small></div>
+                            </div>
+                            <div class="stat-card flex-grow-1" v-if="selectedField.number_of_rows">
+                                <div class="label">条数</div>
+                                <div class="value">{{ selectedField.number_of_rows }}<small>条</small></div>
+                            </div>
+                            <div class="stat-card flex-grow-1" v-if="selectedField.plant_distance">
+                                <div class="label">株間</div>
+                                <div class="value">{{ selectedField.plant_distance }}<small>cm</small></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Associated Crops from Season Plans -->
+                    <div v-if="fieldCrops.length > 0" class="mb-4">
+                        <div class="text-subtitle-2 font-weight-bold mb-2">
+                            <v-icon size="18" class="mr-1">mdi-leaf</v-icon>作付計画（紐づく作物）
+                        </div>
+                        <div v-for="crop in fieldCrops" :key="crop.variety_name" class="mb-2">
+                            <v-card variant="outlined" rounded="lg" class="pa-3">
+                                <div class="d-flex align-center justify-space-between">
+                                    <div>
+                                        <div class="font-weight-bold text-body-2">
+                                            <v-icon size="16" color="green" class="mr-1">mdi-sprout</v-icon>
+                                            {{ crop.variety_name }}
+                                        </div>
+                                        <div class="text-caption text-grey-darken-1 mt-1" v-if="crop.base_date">
+                                            <v-icon size="12" class="mr-1">mdi-calendar</v-icon>起算日: {{ crop.base_date }}
+                                        </div>
+                                        <div class="text-caption text-grey-darken-1" v-if="crop.nursery_location">
+                                            <v-icon size="12" class="mr-1">mdi-home</v-icon>育苗: {{ crop.nursery_location }}
+                                        </div>
+                                    </div>
+                                    <v-chip size="x-small" color="green" variant="tonal">作付中</v-chip>
+                                </div>
+                            </v-card>
+                        </div>
+                    </div>
+                    <div v-else-if="selectedField.folder_name === '耕作地'" class="mb-4">
+                        <div class="text-subtitle-2 font-weight-bold mb-2">
+                            <v-icon size="18" class="mr-1">mdi-leaf</v-icon>作付計画
+                        </div>
+                        <div class="text-caption text-grey pa-3 text-center" style="background:#fafafa; border-radius:8px;">
+                            この圃場にはまだ作付計画が登録されていません
+                        </div>
+                    </div>
+
+                    <!-- Pending Tasks -->
+                    <div v-if="fieldTasks.length > 0" class="mb-4">
+                        <div class="text-subtitle-2 font-weight-bold mb-2">
+                            <v-icon size="18" class="mr-1">mdi-format-list-checks</v-icon>未完了タスク
+                            <v-chip size="x-small" color="red" variant="tonal" class="ml-1">{{ fieldTasks.length }}</v-chip>
+                        </div>
+                        <div v-for="(task, i) in fieldTasks.slice(0, 5)" :key="i" class="d-flex align-center ga-2 mb-1 pa-2" style="background:#fafafa;border-radius:8px;">
+                            <v-icon size="16" color="orange">mdi-alert-circle</v-icon>
+                            <div class="flex-grow-1">
+                                <div class="text-caption font-weight-bold">{{ task.work_minor }}</div>
+                                <div class="text-caption text-grey">{{ task.scheduled_date }} · {{ task.variety_name }}</div>
+                            </div>
+                        </div>
+                        <div v-if="fieldTasks.length > 5" class="text-caption text-center text-grey mt-1">
+                            他 {{ fieldTasks.length - 5 }} 件のタスク
+                        </div>
+                    </div>
+
+                    <!-- Notes -->
+                    <div v-if="selectedField.notes" class="mb-4">
+                        <div class="text-subtitle-2 font-weight-bold mb-1">
+                            <v-icon size="18" class="mr-1">mdi-note-text</v-icon>備考
+                        </div>
+                        <div class="text-body-2 text-grey-darken-2 pa-2" style="background:#fafafa;border-radius:8px;">{{ selectedField.notes }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000">
+                {{ snackbar.text }}
+            </v-snackbar>
+        </v-app>
+    </div>
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vuetify@3.4.0/dist/vuetify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+    const { createApp, ref, computed, onMounted } = Vue;
+    createApp({
+        setup() {
+            const drawer = ref(false);
+            const mapEl = ref(null);
+            const snackbar = ref({ show: false, color: '', text: '' });
+
+            let lmap = null;
+            let fieldLayerGroup = null;
+            let highlightLayerGroup = null;
+
+            const allFields = ref([]);
+            const seasonPlans = ref([]);
+            const tasks = ref([]);
+            const visibleLayers = ref(['耕作地', 'その他施設', '草刈り対応', '農業用ハウス', '駐車場']);
+            const layerOptions = [
+                { value: '耕作地', label: '耕作地', color: 'green' },
+                { value: '農業用ハウス', label: 'ハウス', color: 'light-blue' },
+                { value: 'その他施設', label: '施設', color: 'orange' },
+                { value: '草刈り対応', label: '草刈', color: 'light-green' },
+                { value: '駐車場', label: '駐車場', color: 'grey' },
+            ];
+
+            const selectedField = ref(null);
+            const detailOpen = ref(false);
+
+            // Associated data for selected field
+            const fieldCrops = computed(() => {
+                if (!selectedField.value) return [];
+                const name = selectedField.value.name;
+                return seasonPlans.value.filter(p => p.field_name === name);
+            });
+
+            const fieldTasks = computed(() => {
+                if (!selectedField.value) return [];
+                const name = selectedField.value.name;
+                return tasks.value.filter(t => t.field_name === name && t.status !== '完了');
+            });
+
+            const folderColor = (f) => {
+                const map = { '耕作地': 'green', 'その他施設': 'orange', '草刈り対応': 'light-green', '農業用ハウス': 'light-blue', '駐車場': 'grey' };
+                return map[f] || 'grey';
+            };
+            const folderIcon = (f) => {
+                const map = { '耕作地': 'mdi-sprout', 'その他施設': 'mdi-warehouse', '草刈り対応': 'mdi-content-cut', '農業用ハウス': 'mdi-home-variant', '駐車場': 'mdi-parking' };
+                return map[f] || 'mdi-map-marker';
+            };
+
+            const parseCoords = (coordStr, type) => {
+                const parts = coordStr.trim().split(/[\s,]+/);
+                const coords = [];
+                for (let i = 0; i < parts.length; i += 3) {
+                    if (parts[i] && parts[i + 1]) {
+                        coords.push([parseFloat(parts[i]), parseFloat(parts[i + 1])]);
+                    }
+                }
+                if (type === 'Polygon' && coords.length > 0) {
+                    if (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1]) {
+                        coords.push(coords[0]);
+                    }
+                    return [coords];
+                }
+                return coords;
+            };
+
+            const updateZoomClass = () => {
+                if (!lmap) return;
+                const container = lmap.getContainer();
+                if (lmap.getZoom() <= 17) {
+                    container.classList.add('map-zoomed-out');
+                    container.classList.remove('map-zoomed-in');
+                } else {
+                    container.classList.add('map-zoomed-in');
+                    container.classList.remove('map-zoomed-out');
+                }
+            };
+
+            const renderFieldsOnMap = (shouldFitBounds = false) => {
+                if (!lmap) return;
+                fieldLayerGroup.clearLayers();
+                const groups = {};
+
+                const selectField = (f, latlngs) => {
+                    selectedField.value = f;
+                    detailOpen.value = true;
+                    highlightLayerGroup.clearLayers();
+                    L.polygon(latlngs, { color: 'red', weight: 4, fillOpacity: 0, dashArray: '8 4' })
+                        .addTo(highlightLayerGroup);
+                };
+
+                allFields.value.forEach(f => {
+                    if (!visibleLayers.value.includes(f.folder_name)) return;
+                    if (f.geometry_type === 'Polygon' && f.polygon_coords) {
+                        const coords = parseCoords(f.polygon_coords, 'Polygon');
+                        if (!coords[0] || coords[0].length < 3) return;
+                        const latlngs = coords[0].map(c => [c[1], c[0]]);
+
+                        let color = '#4caf50';
+                        if (f.folder_name === '駐車場') color = '#9e9e9e';
+                        if (f.folder_name === 'その他施設') color = '#ff9800';
+                        if (f.folder_name === '草刈り対応') color = '#8bc34a';
+                        if (f.folder_name === '農業用ハウス') color = '#03a9f4';
+
+                        const poly = L.polygon(latlngs, {
+                            color, weight: 2, fillOpacity: 0.35,
+                            className: f.folder_name === '駐車場' ? 'layer-parking' : ''
+                        });
+
+                        poly.feature = { properties: f };
+
+                        let tooltipClass = 'text-caption';
+                        if (f.folder_name) tooltipClass += ` tooltip-${f.folder_name}`;
+
+                        poly.bindTooltip(f.name, {
+                            permanent: true, direction: 'center',
+                            className: `${tooltipClass} detail-label`
+                        });
+
+                        // Group labels
+                        if (f.folder_name !== '駐車場') {
+                            const baseName = f.name ? f.name.replace(/[①-⑳0-9０-９A-Za-z\-_]+$/, '').trim() : '名称未設定';
+                            if (!groups[baseName]) {
+                                groups[baseName] = { folder_name: f.folder_name, bounds: L.latLngBounds(), totalArea: 0, elevations: [], tooltipClass, fields: [] };
+                            }
+                            groups[baseName].bounds.extend(poly.getBounds());
+                            if (f.area_total) groups[baseName].totalArea += parseFloat(f.area_total);
+                            if (f.rep_elev) groups[baseName].elevations.push(parseFloat(f.rep_elev));
+                            groups[baseName].fields.push({ field: f, latlngs });
+                        }
+
+                        // Click on polygon
+                        poly.on('click', (e) => {
+                            if (e.originalEvent) e.originalEvent._polygonClicked = true;
+                            selectField(f, latlngs);
+                        });
+
+                        // Invisible circle marker at the center for guaranteed clickability
+                        const center = poly.getBounds().getCenter();
+                        const clickMarker = L.circleMarker(center, {
+                            radius: 20, opacity: 0, fillOpacity: 0, interactive: true
+                        });
+                        clickMarker.on('click', (e) => {
+                            if (e.originalEvent) e.originalEvent._polygonClicked = true;
+                            selectField(f, latlngs);
+                        });
+                        fieldLayerGroup.addLayer(clickMarker);
+
+                        fieldLayerGroup.addLayer(poly);
+                    }
+                });
+
+                // Group labels (zoomed out view) — clickable markers
+                Object.keys(groups).forEach(baseName => {
+                    const g = groups[baseName];
+                    if (!g.bounds.isValid()) return;
+                    const center = g.bounds.getCenter();
+                    const areaStr = Math.round(g.totalArea).toLocaleString() + ' ㎡';
+                    let elevStr = '未取得';
+                    if (g.elevations.length > 0) {
+                        elevStr = (g.elevations.reduce((a, b) => a + b, 0) / g.elevations.length).toFixed(1) + ' m';
+                    }
+                    const html = `<div style="text-align:center;line-height:1.2;cursor:pointer;">
+                        <strong style="font-size:1.1em;">${baseName}</strong><br>
+                        <span style="font-size:0.85em;opacity:0.9;">面積: ${areaStr}<br>標高: ${elevStr}</span>
+                    </div>`;
+                    const icon = L.divIcon({
+                        html: html,
+                        className: `${g.tooltipClass} group-label leaflet-tooltip`,
+                        iconSize: [150, 60],
+                        iconAnchor: [75, 30]
+                    });
+                    const marker = L.marker(center, { icon, interactive: true });
+                    marker.on('click', (e) => {
+                        if (e.originalEvent) e.originalEvent._polygonClicked = true;
+                        // Zoom in to this group and select the first field
+                        lmap.fitBounds(g.bounds, { padding: [60, 60], maxZoom: 18 });
+                        if (g.fields.length === 1) {
+                            selectField(g.fields[0].field, g.fields[0].latlngs);
+                        }
+                    });
+                    fieldLayerGroup.addLayer(marker);
+                });
+
+                updateZoomClass();
+                if (shouldFitBounds && fieldLayerGroup.getLayers().length > 0) {
+                    lmap.fitBounds(fieldLayerGroup.getBounds(), { padding: [50, 50] });
+                }
+            };
+
+            const loadData = async () => {
+                try {
+                    const [fRes, spRes, tRes] = await Promise.all([
+                        fetch('/api/admin/data/fields'),
+                        fetch('/api/admin/data/season_plans'),
+                        fetch('/api/admin/data/tasks'),
+                    ]);
+                    const fData = await fRes.json();
+                    const spData = await spRes.json();
+                    const tData = await tRes.json();
+                    allFields.value = fData.data || [];
+                    seasonPlans.value = spData.data || [];
+                    tasks.value = tData.data || [];
+                    renderFieldsOnMap(true);
+                } catch (e) {
+                    console.error(e);
+                    snackbar.value = { show: true, color: 'error', text: 'データ取得失敗' };
+                }
+            };
+
+            onMounted(() => {
+                lmap = L.map('map-container').setView([36.73, 138.21], 15);
+                L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+                    attribution: 'Google', maxZoom: 22
+                }).addTo(lmap);
+
+                fieldLayerGroup = L.featureGroup().addTo(lmap);
+                highlightLayerGroup = L.featureGroup().addTo(lmap);
+
+                lmap.on('zoomend', updateZoomClass);
+
+                // Close detail panel when clicking empty map
+                lmap.on('click', (e) => {
+                    // Check if click was on a polygon (handled by polygon click handler) or empty area
+                    if (!e.originalEvent._polygonClicked) {
+                        detailOpen.value = false;
+                        highlightLayerGroup.clearLayers();
+                    }
+                });
+
+                loadData();
+            });
+
+            return {
+                drawer, mapEl, snackbar,
+                visibleLayers, layerOptions,
+                selectedField, detailOpen, fieldCrops, fieldTasks,
+                folderColor, folderIcon, renderFieldsOnMap
+            };
+        }
+    }).use(Vuetify.createVuetify()).mount('#app');
+    </script>
+</body>
+</html>

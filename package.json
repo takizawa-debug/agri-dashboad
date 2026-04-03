@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "start": "wrangler pages dev public",
-    "deploy": "wrangler pages deploy public"
+    "deploy": "wrangler pages deploy public --branch=production --commit-dirty=true"
   },
   "devDependencies": {
     "wrangler": "^4.71.0"

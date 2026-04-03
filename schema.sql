@@ -145,3 +145,14 @@ CREATE TABLE tasks (
     worker_name TEXT,
     memo TEXT
 );
+
+CREATE TABLE work_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    log_date TEXT NOT NULL,
+    worker_name TEXT NOT NULL,
+    crop_name TEXT,
+    variety_name TEXT,
+    work_description TEXT,
+    memo TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+);

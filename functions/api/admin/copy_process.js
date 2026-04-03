@@ -6,44 +6,30 @@ export async function onRequestPost({ request, env }) {
             return Response.json({ error: 'sourceVariety and targetVariety are required' }, { status: 400 });
         }
 
-        // 1. Delete all existing process_master records for the target variety
-        const deleteStmt = env.DB.prepare(`DELETE FROM process_master WHERE variety_name = ?`).bind(targetVariety);
+        // 1. Fetch source records
+        const { results: sourceItems } = await env.DB.prepare(
+            `SELECT * FROM process_master WHERE variety_name = ?`
+        ).bind(sourceVariety).all();
 
-        // 2. Fetch all process_master records for the source variety
-        const { results: sourceItems } = await env.DB.prepare(`SELECT * FROM process_master WHERE variety_name = ?`).bind(sourceVariety).all();
+        // 2. Build batch: delete target, then insert copies
+        const batchStmts = [
+            env.DB.prepare(`DELETE FROM process_master WHERE variety_name = ?`).bind(targetVariety)
+        ];
 
-        const batchStmts = [deleteStmt];
-
-        // 3. Prepare insert statements for each source item, assigning the target variety name
-        if (sourceItems && sourceItems.length > 0) {
-            // omit 'id' so sqlite autoincrements it
-            const columnsToCopy = Object.keys(sourceItems[0]).filter(k => k !== 'id' && k !== 'variety_name');
+        if (sourceItems?.length) {
+            const columns = Object.keys(sourceItems[0]).filter(k => k !== 'id' && k !== 'variety_name');
+            const allColumns = [...columns, 'variety_name'];
+            const placeholders = allColumns.map(() => '?').join(', ');
+            const insertSQL = `INSERT INTO process_master (${allColumns.join(', ')}) VALUES (${placeholders})`;
 
             for (const item of sourceItems) {
-                const values = [];
-                const placeholders = [];
-                const insertKeys = [];
-
-                columnsToCopy.forEach(key => {
-                    insertKeys.push(key);
-                    values.push(item[key]);
-                    placeholders.push('?');
-                });
-
-                // Override variety_name
-                insertKeys.push('variety_name');
+                const values = columns.map(k => item[k]);
                 values.push(targetVariety);
-                placeholders.push('?');
-
-                const insertStmt = env.DB.prepare(
-                    `INSERT INTO process_master (${insertKeys.join(', ')}) VALUES (${placeholders.join(', ')})`
-                ).bind(...values);
-
-                batchStmts.push(insertStmt);
+                batchStmts.push(env.DB.prepare(insertSQL).bind(...values));
             }
         }
 
-        // 4. Execute all queries as a batch transaction
+        // 3. Execute as batch transaction
         await env.DB.batch(batchStmts);
 
         return Response.json({ success: true, message: '工程のコピーが完了しました' });

@@ -1,114 +1,88 @@
 export async function onRequest(context) {
     const { env } = context;
     try {
-        const { results: plans } = await env.DB.prepare('SELECT * FROM season_plans').all();
-        const { results: processes } = await env.DB.prepare('SELECT * FROM process_master').all();
-        const { results: workMaster } = await env.DB.prepare('SELECT * FROM work_master').all();
-        const { results: fieldsRaw } = await env.DB.prepare('SELECT * FROM fields').all();
-        const { results: loggedTasks } = await env.DB.prepare('SELECT * FROM tasks WHERE generated_task_id IS NOT NULL').all();
+        const [
+            { results: plans },
+            { results: processes },
+            { results: workMaster },
+            { results: fieldsRaw },
+            { results: loggedTasks }
+        ] = await Promise.all([
+            env.DB.prepare('SELECT * FROM season_plans').all(),
+            env.DB.prepare('SELECT * FROM process_master').all(),
+            env.DB.prepare('SELECT * FROM work_master').all(),
+            env.DB.prepare('SELECT * FROM fields').all(),
+            env.DB.prepare('SELECT * FROM tasks WHERE generated_task_id IS NOT NULL').all()
+        ]);
 
-        // Helper map to find major category from minor category
-        const workMap = {};
-        for (const w of workMaster) {
-            workMap[w.minor_category] = w.major_category;
-        }
+        // Build lookup maps
+        const workMap = Object.fromEntries(workMaster.map(w => [w.minor_category, w.major_category]));
+        const loggedMap = Object.fromEntries(loggedTasks.map(t => [t.generated_task_id, t]));
+        const fields = Object.fromEntries(fieldsRaw.map(f => [f.name, {
+            areaTotal: f.area_total,
+            perimeter: f.perimeter,
+            folder: f.folder_name,
+            repElev: f.rep_elev,
+            notes: f.notes
+        }]));
 
-        const loggedMap = {};
-        for (const lt of loggedTasks) {
-            loggedMap[lt.generated_task_id] = lt;
-        }
+        const schedules = plans.map(plan => {
+            const cropProcs = processes.filter(p => p.variety_name === plan.variety_name);
+            const ganttProcesses = [];
+            const generatedTasks = [];
 
-        let fields = {};
-        for (const field of fieldsRaw) {
-            fields[field.name] = {
-                areaTotal: field.area_total,
-                perimeter: field.perimeter,
-                folder: field.folder_name,
-                repElev: field.rep_elev,
-                notes: field.notes
-            };
-        }
+            cropProcs.forEach((proc, procIdx) => {
+                const baseDateObj = parseDate(plan.base_date);
+                const startOffset = parseInt(proc.base_day_offset) || 0;
+                let endOffset = parseInt(proc.base_day_end_offset);
+                const interval = parseInt(proc.repeat_interval) || 1;
 
-        let schedules = plans.map(plan => {
-            const planVariety = plan.variety_name;
-            const cropProcs = processes.filter(p => p.variety_name === planVariety);
-
-            let generatedTasks = [];
-
-            
-            let ganttProcesses = [];
-cropProcs.forEach((proc, procIdx) => {
-                let startDateObj = new Date(plan.base_date);
-                if (isNaN(startDateObj.getTime())) startDateObj = new Date();
-                
-                const sOffset = parseInt(proc.base_day_offset) || 0;
-                let eOffset = parseInt(proc.base_day_end_offset);
-                const inter = parseInt(proc.repeat_interval) || 1;
-                
-                if (isNaN(eOffset) || eOffset < sOffset) {
-                    eOffset = sOffset;
+                if (isNaN(endOffset) || endOffset < startOffset) {
+                    endOffset = startOffset;
                 }
-                
-                let sDate = new Date(startDateObj);
-                sDate.setDate(sDate.getDate() + sOffset);
-                let eDate = new Date(startDateObj);
-                eDate.setDate(eDate.getDate() + eOffset);
-                
-                const majorCatCache = proc.work_major || workMap[proc.work_minor] || '';
-                
+
+                const majorCat = proc.work_major || workMap[proc.work_minor] || '';
+                const sDate = offsetDate(baseDateObj, startOffset);
+                const eDate = offsetDate(baseDateObj, endOffset);
+
+                // Gantt chart process entry
                 ganttProcesses.push({
                     procId: `${plan.id}-${procIdx}`,
-                    majorCat: majorCatCache,
+                    majorCat,
                     midCat: proc.work_mid || '',
                     minorCat: proc.work_minor || '',
                     detail: proc.work_details || '',
-                    startDate: `${sDate.getFullYear()}-${String(sDate.getMonth() + 1).padStart(2, '0')}-${String(sDate.getDate()).padStart(2, '0')}`,
-                    endDate: `${eDate.getFullYear()}-${String(eDate.getMonth() + 1).padStart(2, '0')}-${String(eDate.getDate()).padStart(2, '0')}`,
+                    startDate: formatDate(sDate),
+                    endDate: formatDate(eDate),
                     startDateObj: sDate.getTime(),
                     endDateObj: eDate.getTime(),
-                    startOffset: sOffset,
-                    endOffset: eOffset,
-                    interval: inter,
+                    startOffset,
+                    endOffset,
+                    interval,
                     materialName: proc.material_name || '',
                     equipmentName: proc.equipment_name || '',
                     baseWorkHours: parseFloat(proc.unit_value) || 0
                 });
 
-                const startOffset = parseInt(proc.base_day_offset) || 0;
-                let endOffset = parseInt(proc.base_day_end_offset);
-                let interval = parseInt(proc.repeat_interval) || 1;
-
-                if (isNaN(endOffset) || endOffset < startOffset) {
-                    endOffset = startOffset; // single task
-                }
-
+                // Generate individual tasks (expand repeats for continuous processes)
+                const isContinuous = endOffset > startOffset;
                 let repCount = 0;
-                let isContinuous = (endOffset > startOffset);
 
                 for (let dayOffset = startOffset; dayOffset <= endOffset; dayOffset += interval) {
-                    let targetDateObj = new Date(plan.base_date);
-                    if (isNaN(targetDateObj.getTime())) {
-                        targetDateObj = new Date();
-                    }
-                    targetDateObj.setDate(targetDateObj.getDate() + dayOffset);
-
-                    const yyyy = targetDateObj.getFullYear();
-                    const mm = String(targetDateObj.getMonth() + 1).padStart(2, '0');
-                    const dd = String(targetDateObj.getDate()).padStart(2, '0');
-
-                    const majorCatCache = proc.work_major || workMap[proc.work_minor] || '';
-
-                    const taskId = isContinuous ? `${plan.id}-${procIdx}-rep${repCount}` : `${plan.id}-${procIdx}`;
+                    const targetDate = offsetDate(parseDate(plan.base_date), dayOffset);
+                    const taskId = isContinuous
+                        ? `${plan.id}-${procIdx}-rep${repCount}`
+                        : `${plan.id}-${procIdx}`;
                     const loggedInfo = loggedMap[taskId];
 
                     generatedTasks.push({
-                        taskId: taskId,
-                        isContinuous: isContinuous,
+                        taskId,
+                        isContinuous,
                         intervalDays: interval,
-                        dayOffset: dayOffset,
-                        targetDate: `${yyyy}-${mm}-${dd}`,
-                        targetDateObj: targetDateObj.getTime(),
-                        majorCat: majorCatCache,
+                        dayOffset,
+                        targetDate: formatDate(targetDate),
+                        targetDateObj: targetDate.getTime(),
+                        majorCat,
                         midCat: proc.work_mid || '',
                         minorCat: proc.work_minor || '',
                         detail: proc.work_details || '',
@@ -121,10 +95,10 @@ cropProcs.forEach((proc, procIdx) => {
                         materialQty: proc.material_qty || 0,
                         materialUnit: proc.material_unit || '',
                         equipName: proc.equipment_name || '',
-                        status: loggedInfo ? loggedInfo.status : '未',
-                        actualHours: loggedInfo ? loggedInfo.actual_hours : null,
-                        workerName: loggedInfo ? loggedInfo.worker_name : '',
-                        memo: loggedInfo ? loggedInfo.memo : ''
+                        status: loggedInfo?.status || '未',
+                        actualHours: loggedInfo?.actual_hours ?? null,
+                        workerName: loggedInfo?.worker_name || '',
+                        memo: loggedInfo?.memo || ''
                     });
 
                     if (!isContinuous) break;
@@ -146,4 +120,22 @@ cropProcs.forEach((proc, procIdx) => {
     } catch (err) {
         return Response.json({ error: err.message }, { status: 500 });
     }
+}
+
+/** Parse date string, fallback to current date if invalid */
+function parseDate(str) {
+    const d = new Date(str);
+    return isNaN(d.getTime()) ? new Date() : d;
+}
+
+/** Create a new Date offset by N days from a base date */
+function offsetDate(base, days) {
+    const d = new Date(base);
+    d.setDate(d.getDate() + days);
+    return d;
+}
+
+/** Format Date as YYYY-MM-DD */
+function formatDate(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }

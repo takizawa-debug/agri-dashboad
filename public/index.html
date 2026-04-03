@@ -1,2011 +1,947 @@
 <!DOCTYPE html>
 <html>
-
 <head>
-    <base target="_top">
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
-    <title>農作業ダッシュボード</title>
-
-    <!-- Fonts & Icons -->
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap"
-        rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>農作業記録</title>
+    <meta name="description" content="農作業の日々の記録とタスク管理">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
-
-    <!-- Vuetify CSS -->
     <link href="https://cdn.jsdelivr.net/npm/vuetify@3.4.0/dist/vuetify.min.css" rel="stylesheet">
-
-    <!-- Leaflet CSS & JS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-    <style>
-        body {
-            font-family: 'Noto Sans JP', sans-serif;
-        }
-
-        .v-application {
-            font-family: 'Noto Sans JP', sans-serif !important;
-        }
-
-        .gantt-container {
-            overflow-x: auto;
-            overflow-y: hidden;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            position: relative;
-        }
-
-        .dark-mode .gantt-container {
-            background: #1E1E1E;
-        }
-
-        /* Unified Gantt Layout */
-        .gantt-header {
-            display: flex;
-            position: sticky;
-            top: 0;
-            z-index: 40;
-            background: #f9fafb;
-            border-bottom: 1px solid #e5e7eb;
-            min-width: max-content;
-        }
-
-        .dark-mode .gantt-header {
-            background: #111827;
-            border-bottom: 1px solid #374151;
-        }
-
-        .gantt-label-fixed {
-            position: sticky;
-            left: 0;
-            width: 250px;
-            min-width: 250px;
-            background: #f9fafb;
-            z-index: 50;
-            padding: 12px;
-            border-right: 1px solid #e5e7eb;
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-        }
-
-        .dark-mode .gantt-label-fixed {
-            background: #111827;
-            border-right: 1px solid #374151;
-        }
-
-        .gantt-days {
-            display: flex;
-            flex-grow: 1;
-        }
-
-        .gantt-day-header {
-            width: 60px;
-            min-width: 60px;
-            padding: 8px 4px;
-            text-align: center;
-            border-right: 1px solid #f3f4f6;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .dark-mode .gantt-day-header {
-            border-right: 1px solid #374151;
-        }
-
-        .gantt-row-container {
-            display: flex;
-            position: relative;
-            border-bottom: 1px solid #e5e7eb;
-            background: white;
-            min-width: max-content;
-        }
-
-        .dark-mode .gantt-row-container {
-            border-bottom: 1px solid #374151;
-            background: #1E1E1E;
-        }
-
-        .gantt-row-container .gantt-label-fixed {
-            background: white;
-            z-index: 30;
-            align-items: flex-start;
-            flex-direction: column;
-            justify-content: center;
-            position: sticky;
-            left: 0;
-            border-right: 1px solid #e5e7eb;
-        }
-
-        .dark-mode .gantt-row-container .gantt-label-fixed {
-            background: #1E1E1E;
-            border-right: 1px solid #374151;
-        }
-
-        .gantt-day-bg {
-            width: 60px;
-            min-width: 60px;
-            border-right: 1px solid #f3f4f6;
-            height: 100%;
-        }
-
-        .dark-mode .gantt-day-bg {
-            border-right: 1px solid #374151;
-        }
-
-        .gantt-task-overlay {
-            position: absolute;
-            height: 32px;
-            z-index: 5;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-            border-radius: 16px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-        }
-
-        .gantt-task-overlay:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-            z-index: 15;
-        }
-
-        .task-bar-content {
-            display: flex;
-            width: 100%;
-            height: 100%;
-            border-radius: 16px;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .task-tail {
-            flex: 3;
-            opacity: 0.4;
-        }
-
-        .task-core {
-            flex: 1;
-            opacity: 1;
-        }
-
-        .task-text-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 0.75rem;
-            font-weight: bold;
-            text-shadow: 0px 1px 3px rgba(0, 0, 0, 0.8);
-            pointer-events: none;
-            white-space: nowrap;
-        }
-
-        /* Colors for different task types based on majorCat */
-        .task-blue {
-            background: #3b82f6;
-        }
-
-        /* 播種・育苗 */
-        .task-brown {
-            background: #a16207;
-        }
-
-        /* 準備・整地 */
-        .task-green {
-            background: #10b981;
-        }
-
-        /* 定植 */
-        .task-teal {
-            background: #14b8a6;
-        }
-
-        /* 管理・施肥 */
-        .task-red {
-            background: #ef4444;
-        }
-
-        /* 防除 */
-        .task-orange {
-            background: #f59e0b;
-        }
-
-        /* 収穫 */
-        .task-grey {
-            background: #64748b;
-        }
-
-        /* 片付け */
-        .task-default {
-            background: #8b5cf6;
-        }
-
-        /* その他 */
-
-        /* Specific Day Colors for Headers and BG */
-        .bg-saturday {
-            background-color: #e0f2fe !important;
-        }
-
-        .dark-mode .bg-saturday {
-            background-color: #0369a1 !important;
-        }
-
-        .text-blue {
-            color: #0284c7 !important;
-        }
-
-        .dark-mode .text-blue {
-            color: #7dd3fc !important;
-        }
-
-        .bg-holiday {
-            background-color: #ffe4e6 !important;
-        }
-
-        .dark-mode .bg-holiday {
-            background-color: #be123c !important;
-        }
-
-        .text-red {
-            color: #e11d48 !important;
-        }
-
-        .dark-mode .text-red {
-            color: #fda4af !important;
-        }
-
-        .task-continuous-pattern {
-            background-image: repeating-linear-gradient(45deg,
-                    rgba(255, 255, 255, 0.2),
-                    rgba(255, 255, 255, 0.2) 10px,
-                    transparent 10px,
-                    transparent 20px);
-            border: 2px dashed rgba(255, 255, 255, 0.8);
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2) inset;
-        }
-    </style>
+    <link href="/css/common.css" rel="stylesheet">
 </head>
-
 <body>
     <div id="app">
-        <v-app :theme="isDark ? 'dark' : 'light'">
-
-            <!-- App Bar -->
+        <v-app theme="light">
             <v-app-bar color="green-darken-3" elevation="2">
                 <v-app-bar-nav-icon @click="drawer = !drawer"></v-app-bar-nav-icon>
                 <v-app-bar-title class="font-weight-bold">
                     <v-icon class="mr-2">mdi-sprout</v-icon>
-                    第五期 農業工程ダッシュボード
+                    農作業管理
                 </v-app-bar-title>
                 <v-spacer></v-spacer>
-                <v-btn icon @click="loadData" :loading="loading">
+                <v-btn icon @click="loadAll" :loading="loading">
                     <v-icon>mdi-refresh</v-icon>
-                </v-btn>
-                <v-btn icon @click="toggleTheme">
-                    <v-icon>{{ isDark ? 'mdi-weather-night' : 'mdi-weather-sunny' }}</v-icon>
                 </v-btn>
             </v-app-bar>
 
             <!-- Navigation Drawer -->
             <v-navigation-drawer v-model="drawer" temporary>
-                <v-list nav>
-                    <v-list-item prepend-icon="mdi-check-circle" title="本日のタスク" value="tasks"
-                        @click="currentView = 'tasks'" :active="currentView === 'tasks'"></v-list-item>
-                    <v-list-item prepend-icon="mdi-chart-gantt" title="全体スケジュール" value="gantt"
-                        @click="currentView = 'gantt'" :active="currentView === 'gantt'"></v-list-item>
-                    <v-list-item prepend-icon="mdi-map" title="地図" value="map" @click="currentView = 'map'"
-                        :active="currentView === 'map'"></v-list-item>
+                <v-list-item class="pa-4" style="background: linear-gradient(135deg, #2E7D32, #43A047);">
+                    <template v-slot:prepend>
+                        <v-icon color="white" size="28">mdi-sprout</v-icon>
+                    </template>
+                    <v-list-item-title class="text-white font-weight-bold text-body-1">農業工程管理</v-list-item-title>
+                    <v-list-item-subtitle class="text-green-lighten-3 text-caption">ナビゲーション</v-list-item-subtitle>
+                </v-list-item>
+                <v-divider></v-divider>
+                <v-list density="comfortable" nav class="pa-2">
+                    <v-list-item href="/" prepend-icon="mdi-format-list-checks" title="タスク管理"
+                        subtitle="日々のタスクと作業記録" color="green-darken-3" active></v-list-item>
+                    <v-list-item href="/admin.html" prepend-icon="mdi-cog" title="マスタ管理"
+                        subtitle="品目・工程・圃場の設定" color="blue-darken-3"></v-list-item>
+                    <v-list-item href="/map.html" prepend-icon="mdi-map" title="圃場マップ"
+                        subtitle="圃場の位置と区画を確認" color="teal-darken-3"></v-list-item>
+                    <v-divider class="my-1"></v-divider>
+                    <v-list-subheader>外部ツール</v-list-subheader>
+                    <v-list-item href="https://mimizuya-meter.takizawa-0fe.workers.dev/" target="_blank"
+                        prepend-icon="mdi-thermometer" title="温度管理"
+                        subtitle="ハウス内環境モニタリング" color="orange-darken-2">
+                        <template v-slot:append>
+                            <v-icon size="small" color="grey">mdi-open-in-new</v-icon>
+                        </template>
+                    </v-list-item>
                 </v-list>
             </v-navigation-drawer>
 
             <v-main class="bg-grey-lighten-4">
-                <v-container fluid>
+                <v-container fluid class="pa-4 pa-md-6">
+                    <!-- Tabs (Desktop only) -->
+                    <v-tabs v-model="activeTab" color="green-darken-3" class="mb-4 desktop-tabs">
+                        <v-tab value="tasks" prepend-icon="mdi-format-list-checks">タスク一覧</v-tab>
+                        <v-tab value="calendar" prepend-icon="mdi-calendar-month">作業カレンダー</v-tab>
+                        <v-tab value="logs" prepend-icon="mdi-clipboard-list">作業記録</v-tab>
+                    </v-tabs>
 
-                    <!-- Loading Overlay -->
-                    <v-overlay :model-value="loading" class="align-center justify-center">
-                        <v-progress-circular color="green-darken-2" indeterminate size="64"></v-progress-circular>
-                    </v-overlay>
+                    <!-- ====== TAB: TASK LIST ====== -->
+                    <div v-show="activeTab === 'tasks'">
+                        <!-- Sub tabs -->
+                        <v-tabs v-model="taskSubTab" color="green-darken-3" density="compact" class="mb-3">
+                            <v-tab value="pending">
+                                未完了
+                                <v-badge :content="pendingTasks.length" color="red" inline class="ml-1"></v-badge>
+                            </v-tab>
+                            <v-tab value="done">
+                                完了済み
+                                <v-badge :content="doneTasks.length" color="green" inline class="ml-1"></v-badge>
+                            </v-tab>
+                        </v-tabs>
 
-                    <!-- ====== VIEW: TASKS ====== -->
-                    <v-slide-y-transition hide-on-leave>
-                        <div v-if="currentView === 'tasks' && !loading">
-                            <div class="d-flex align-center justify-space-between mb-4">
-                                <h2 class="text-h5 font-weight-bold text-green-darken-3">
-                                    <v-icon color="green-darken-3" class="mr-2">mdi-calendar-today</v-icon>
-                                    本日のタスク ({{ todayDateStr }})
-                                </h2>
+                        <!-- Task Filters -->
+                        <v-card elevation="0" class="mb-4 pa-3 bg-transparent border rounded-lg task-filter-bar">
+                            <div class="d-flex flex-wrap align-center" style="gap: 12px;">
+                                <v-select v-model="taskFilterCrop" :items="taskCropOptions" label="作物"
+                                    density="compact" hide-details variant="outlined" style="max-width: 160px;"
+                                    clearable></v-select>
+                                <v-chip-group v-if="taskSubTab === 'pending'" v-model="taskFilterPeriod" color="green-darken-3">
+                                    <v-chip filter value="overdue" size="small">期限切れ</v-chip>
+                                    <v-chip filter value="today" size="small">今日</v-chip>
+                                    <v-chip filter value="week" size="small">今週</v-chip>
+                                    <v-chip filter value="all" size="small">全て</v-chip>
+                                </v-chip-group>
                             </div>
+                        </v-card>
 
-                            <v-alert v-if="error" type="error" variant="tonal" class="mb-4">{{ error }}</v-alert>
+                        <!-- Pending Tasks (Desktop) -->
+                        <v-card v-show="taskSubTab === 'pending'" elevation="2" rounded="lg" class="desktop-table">
+                            <v-data-table
+                                :headers="taskHeaders"
+                                :items="pendingTasks"
+                                :items-per-page="50"
+                                :loading="loading"
+                                fixed-header
+                                height="calc(100vh - 370px)"
+                                no-data-text="未完了のタスクはありません 🎉"
+                                class="rounded-lg"
+                                density="comfortable"
+                            >
+                                <template v-slot:item.scheduled_date="{ item }">
+                                    <v-chip size="small" :color="getDateColor(item.scheduled_date)" variant="flat"
+                                        class="font-weight-bold">
+                                        {{ item.scheduled_date }}
+                                    </v-chip>
+                                </template>
+                                <template v-slot:item.crop_display="{ item }">
+                                    <div>
+                                        <span class="font-weight-bold text-green-darken-3">{{ item.crop_item }}</span>
+                                        <span class="text-caption text-grey ml-1">{{ item.crop_variety }}</span>
+                                    </div>
+                                </template>
+                                <template v-slot:item.work_name="{ item }">
+                                    <div>
+                                        <span class="font-weight-bold">{{ item.work_minor }}</span>
+                                        <div class="text-caption text-grey">{{ item.work_major }} > {{ item.work_mid }}</div>
+                                    </div>
+                                </template>
+                                <template v-slot:item.actions="{ item }">
+                                    <div class="d-flex align-center" style="gap:4px;">
+                                        <v-btn size="small" variant="outlined" color="grey-darken-1"
+                                            @click="toggleTaskStatus(item)" prepend-icon="mdi-checkbox-blank-outline" class="text-none">
+                                            完了にする
+                                        </v-btn>
+                                        <v-btn size="small" variant="outlined" color="green-darken-2"
+                                            @click="openLogFromTask(item)" prepend-icon="mdi-pencil-plus" class="text-none">
+                                            記録
+                                        </v-btn>
+                                        <v-icon v-if="item.has_log" size="small" color="blue" title="記録あり">mdi-note-check</v-icon>
+                                    </div>
+                                </template>
+                            </v-data-table>
+                        </v-card>
 
-                            <div v-if="todayTasks.length === 0" class="text-center py-10">
-                                <v-icon size="64" color="grey-lighten-1">mdi-emoticon-happy-outline</v-icon>
-                                <div class="text-h6 text-grey mt-4">本日の予定タスクはありません</div>
+                        <!-- Pending Tasks (Mobile Card View) -->
+                        <v-card v-show="taskSubTab === 'pending'" elevation="2" rounded="lg" class="mobile-task-card">
+                            <div v-if="pendingTasks.length === 0" class="text-center pa-8 text-grey">
+                                未完了のタスクはありません 🎉
                             </div>
-
-                            <v-row>
-                                <v-col cols="12" md="6" lg="4" v-for="task in todayTasks" :key="task.taskId">
-                                    <v-card elevation="2" border round="lg" class="d-flex flex-column h-100">
-                                        <v-card-item>
-                                            <template v-slot:subtitle>
-                                                <v-chip size="small" color="blue-darken-1"
-                                                    class="font-weight-bold mb-1">
-                                                    {{ task.field || '圃場未定' }}
-                                                </v-chip>
-                                                <div class="text-caption text-grey-darken-1">{{ task.cropName }}</div>
-                                            </template>
-                                            <v-card-title class="font-weight-bold text-h6">
-                                                {{ task.minorCat }}
-                                            </v-card-title>
-                                        </v-card-item>
-
-                                        <v-card-text class="flex-grow-1">
-                                            <div class="d-flex align-center mb-2">
-                                                <v-icon size="small" color="grey" class="mr-2">mdi-tag</v-icon>
-                                                <span class="text-body-2">{{ task.majorCat }} > {{ task.midCat }}</span>
-                                            </div>
-                                            <div class="d-flex align-center mb-2" v-if="task.materialName">
-                                                <v-icon size="small" color="amber-darken-2"
-                                                    class="mr-2">mdi-flask</v-icon>
-                                                <span class="text-body-2">資材: <strong>{{ task.materialName }}</strong>
-                                                    ({{ task.materialQty }}{{ task.materialUnit }})</span>
-                                            </div>
-                                            <div class="d-flex align-center mb-2" v-if="task.equipName">
-                                                <v-icon size="small" color="blue-grey" class="mr-2">mdi-tractor</v-icon>
-                                                <span class="text-body-2">農機具: {{ task.equipName }}</span>
-                                            </div>
-                                            <div class="d-flex align-center" v-if="task.detail">
-                                                <v-icon size="small" color="grey"
-                                                    class="mr-2">mdi-information-outline</v-icon>
-                                                <span class="text-body-2 text-grey-darken-2">{{ task.detail }}</span>
-                                            </div>
-                                        </v-card-text>
-
-                                        <v-divider></v-divider>
-
-                                        <v-card-actions class="pa-4 bg-grey-lighten-5">
-                                            <div class="text-caption font-weight-bold text-grey-darken-1">
-                                                予定工数: {{ task.workHours }}h
-                                            </div>
-                                            <v-spacer></v-spacer>
-                                            <v-btn color="green-darken-2" variant="flat" prepend-icon="mdi-check"
-                                                @click="openReportDialog(task)">
-                                                完了報告
-                                            </v-btn>
-                                        </v-card-actions>
-                                    </v-card>
-                                </v-col>
-                            </v-row>
-                        </div>
-                    </v-slide-y-transition>
-
-                    <!-- ====== VIEW: GANTT ====== -->
-                    <v-slide-y-transition hide-on-leave>
-                        <div v-if="currentView === 'gantt' && !loading">
-                            <h2 class="text-h5 font-weight-bold text-green-darken-3 mb-4">
-                                <v-icon color="green-darken-3" class="mr-2">mdi-chart-gantt</v-icon>
-                                作付け別スケジュール
-                            </h2>
-
-                            <!-- Filter Section -->
-                            <v-card elevation="0" class="mb-4 pa-4 bg-transparent border">
-                                <div class="text-subtitle-2 text-grey-darken-1 font-weight-bold mb-2">品目による絞り込み表示</div>
-                                <div class="d-flex flex-wrap align-center">
-                                    <v-checkbox v-for="crop in availableCrops" :key="crop" v-model="selectedCrops"
-                                        :label="crop" :value="crop" color="green-darken-3" hide-details
-                                        density="compact" class="mr-4 mb-2"></v-checkbox>
+                            <div v-for="(item, idx) in pendingTasks.slice(0, mobileTaskLimit)" :key="item.task_ref" class="task-card-item">
+                                <div class="task-card-header">
+                                    <v-chip size="x-small" :color="getDateColor(item.scheduled_date)" variant="flat" class="font-weight-bold">
+                                        {{ item.scheduled_date }}
+                                    </v-chip>
+                                    <span class="task-field">
+                                        <v-icon size="x-small" class="mr-1">mdi-map-marker</v-icon>{{ item.field_name }}
+                                    </span>
                                 </div>
-                            </v-card>
-
-                            <!-- Aggregated Legend/Summary Section -->
-                            <v-card elevation="1" class="mb-4 pa-3 bg-grey-lighten-4 border rounded-lg">
-                                <div class="text-caption font-weight-bold text-grey-darken-2 mb-3 d-flex align-center">
-                                    <v-icon size="small" class="mr-1">mdi-sigma</v-icon>
-                                    表示中作付の合計（各記号の凡例）
-                                </div>
-
-                                <div class="d-flex flex-wrap" style="gap: 20px;">
-                                    <div v-for="(totals, cropName) in filteredTotals" :key="cropName"
-                                        class="pl-2 border-s-sm py-1"
-                                        :style="`border-color: ${getCropColor(cropName)} !important; min-width: 280px;`">
-                                        <div class="font-weight-bold text-body-2 mb-1"
-                                            :class="`text-${getCropColor(cropName)}`">{{ cropName }}</div>
-                                        <div class="d-flex flex-wrap align-center text-grey-darken-3"
-                                            style="gap: 12px; font-size: 0.75rem;">
-                                            <div class="d-flex align-center">
-                                                <v-icon size="small"
-                                                    class="mr-1 text-grey-darken-2">mdi-chart-areaspline</v-icon>
-                                                <span>{{ Math.round(totals.area).toLocaleString() }} ㎡</span>
-                                            </div>
-                                            <div class="d-flex align-center">
-                                                <v-icon size="small"
-                                                    class="mr-1 text-green-darken-3">mdi-sprout</v-icon>
-                                                <span>{{ totals.plantingCount.toLocaleString() }} 本</span>
-                                            </div>
-                                            <div class="d-flex align-center">
-                                                <v-icon size="small"
-                                                    class="mr-1 text-purple-darken-3">mdi-tape-measure</v-icon>
-                                                <span>{{ Math.round(totals.mulchLength).toLocaleString() }} m</span>
-                                            </div>
-                                            <div class="d-flex align-center">
-                                                <v-icon size="small" class="mr-1 text-brown-darken-2">mdi-seed</v-icon>
-                                                <span>{{ totals.sowingCount.toLocaleString() }} 粒</span>
-                                            </div>
-                                            <div class="d-flex align-center">
-                                                <v-icon size="small"
-                                                    class="mr-1 text-blue-grey-darken-2">mdi-grid</v-icon>
-                                                <span>{{ totals.trayCount.toLocaleString() }} 枚</span>
-                                            </div>
-                                            <div class="d-flex align-center">
-                                                <v-icon size="small"
-                                                    class="mr-1 text-orange-darken-3">mdi-basket-fill</v-icon>
-                                                <span>{{ totals.harvestYield.toLocaleString() }} {{ totals.harvestUnit
-                                                    || 'kg' }}</span>
-                                            </div>
+                                <div class="task-card-body">
+                                    <div style="flex:1;min-width:0">
+                                        <div>
+                                            <span class="task-crop">{{ item.crop_item }}</span>
+                                            <span class="task-variety">{{ item.crop_variety }}</span>
                                         </div>
+                                        <div class="task-work">{{ item.work_minor }}</div>
+                                        <div class="task-work-detail">{{ item.work_major }} > {{ item.work_mid }}</div>
                                     </div>
+                                    <v-icon v-if="item.has_log" size="small" color="blue">mdi-note-check</v-icon>
                                 </div>
-                            </v-card>
+                                <div class="task-actions">
+                                    <v-btn size="small" variant="tonal" color="grey-darken-1" density="comfortable"
+                                        @click="toggleTaskStatus(item)" prepend-icon="mdi-check" class="text-none" style="flex:1">
+                                        完了
+                                    </v-btn>
+                                    <v-btn size="small" variant="tonal" color="green-darken-2" density="comfortable"
+                                        @click="openLogFromTask(item)" prepend-icon="mdi-pencil-plus" class="text-none" style="flex:1">
+                                        記録
+                                    </v-btn>
+                                </div>
+                            </div>
+                            <div v-if="pendingTasks.length > mobileTaskLimit" class="text-center pa-3">
+                                <v-btn variant="text" color="green-darken-2" @click="mobileTaskLimit += 30" block>
+                                    さらに読み込む (残り {{ pendingTasks.length - mobileTaskLimit }} 件)
+                                </v-btn>
+                            </div>
+                        </v-card>
 
-                            <v-card elevation="2" class="pa-4" rounded="lg">
-                                <div class="gantt-container" v-if="timelineDates.length > 0">
-                                    <!-- Header Row (Dates) -->
-                                    <div class="gantt-header">
-                                        <div class="gantt-label-fixed">
-                                            <v-icon class="mr-2" color="grey">mdi-sprout</v-icon>
-                                            品目 / 圃場
-                                        </div>
-                                        <div class="gantt-days">
-                                            <div v-for="d in timelineDates" :key="d.fullDateStr"
-                                                class="gantt-day-header"
-                                                :class="[getDayClass(d), {'is-today text-green-darken-3': d.fullDateStr === todayStr}]">
-                                                <div class="text-caption font-weight-bold">{{ d.month }}/{{ d.date }}
-                                                </div>
-                                                <div class="text-caption"
-                                                    :class="{'text-grey': d.day !== '土' && d.day !== '日'}"
-                                                    style="font-size: 0.65rem !important;">{{ d.day }}</div>
-                                            </div>
-                                        </div>
+                        <!-- Done Tasks -->
+                        <v-card v-show="taskSubTab === 'done'" elevation="2" rounded="lg">
+                            <v-data-table
+                                :headers="doneTaskHeaders"
+                                :items="doneTasks"
+                                :items-per-page="50"
+                                :loading="loading"
+                                fixed-header
+                                height="calc(100vh - 370px)"
+                                no-data-text="完了済みのタスクはありません"
+                                class="rounded-lg"
+                                density="comfortable"
+                            >
+                                <template v-slot:item.scheduled_date="{ item }">
+                                    <v-chip size="small" color="grey" variant="flat" class="font-weight-bold">
+                                        {{ item.scheduled_date }}
+                                    </v-chip>
+                                </template>
+                                <template v-slot:item.crop_display="{ item }">
+                                    <div>
+                                        <span class="font-weight-bold text-green-darken-3">{{ item.crop_item }}</span>
+                                        <span class="text-caption text-grey ml-1">{{ item.crop_variety }}</span>
                                     </div>
+                                </template>
+                                <template v-slot:item.work_name="{ item }">
+                                    <div>
+                                        <span class="font-weight-bold">{{ item.work_minor }}</span>
+                                        <div class="text-caption text-grey">{{ item.work_major }} > {{ item.work_mid }}</div>
+                                    </div>
+                                </template>
+                                <template v-slot:item.actions="{ item }">
+                                    <v-btn size="small" variant="text" color="orange-darken-2"
+                                        @click="toggleTaskStatus(item)" prepend-icon="mdi-undo" class="text-none">
+                                        戻す
+                                    </v-btn>
+                                </template>
+                            </v-data-table>
+                        </v-card>
+                    </div>
 
-                                    <!-- Data Rows (Crops) -->
-                                    <template v-for="(plan, pIdx) in filteredScheduleData" :key="plan.planId">
-                                        <!-- Parent Crop Row -->
-                                        <div class="gantt-row-container" style="background-color: #f0fdf4; border-bottom: 2px solid #e5e7eb;">
-                                            <div class="gantt-label-fixed" style="background-color: #f0fdf4; z-index: 35; align-items: flex-start; padding: 12px 16px;">
-                                                <div class="font-weight-bold text-body-2 text-green-darken-3 d-flex align-center w-100 mb-1">
-                                                    <v-icon size="small" class="mr-1 text-green-darken-2">mdi-leaf</v-icon>
-                                                    {{ formatCropTitle(plan.cropName) }}
-                                                    <span class="text-caption text-grey-darken-1 ml-2">{{ formatCropSubtitle(plan.cropName) }}</span>
-                                                </div>
-                                                <div class="text-caption text-grey-darken-2 d-flex align-center flex-wrap" style="line-height: 1.2;">
-                                                    <v-icon size="x-small" class="mr-1">mdi-map-marker</v-icon>
-                                                    <template v-for="(f, fIdx) in plan.fields" :key="fIdx">
-                                                        <span style="text-decoration: underline; cursor:pointer;" @click.stop="openFieldModal(f)">{{ f || '未定' }}</span>
-                                                        <span v-if="fIdx < plan.fields.length - 1" class="mx-1">,</span>
-                                                    </template>
-                                                </div>
-                                            </div>
-                                            <div class="gantt-days">
-                                                <div v-for="d in timelineDates" :key="d.fullDateStr" class="gantt-day-bg" :class="getDayClass(d)"></div>
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Child Process Rows (ALWAYS VISIBLE) -->
-                                        <div v-for="(proc, procIdx) in plan.processes" :key="proc.procId" class="gantt-row-container" style="height: 44px;">
-                                            <div class="gantt-label-fixed justify-start align-center pl-6 pr-2">
-                                                <div class="text-caption font-weight-bold text-grey-darken-3 text-truncate w-100 d-flex align-center" :title="proc.minorCat">
-                                                    <v-icon size="x-small" class="mr-2 text-grey-lighten-1">mdi-subdirectory-arrow-right</v-icon>
-                                                    {{ proc.minorCat || '作業未定' }}
-                                                    <div v-if="proc.startOffset !== proc.endOffset && proc.interval > 0" class="ml-auto text-grey" style="font-size: 0.7em;">
-                                                        (計{{ Math.floor((proc.endOffset - proc.startOffset) / proc.interval) + 1 }}回)
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="gantt-days" style="position: relative;">
-                                                <div v-for="d in timelineDates" :key="d.fullDateStr" class="gantt-day-bg" :class="getDayClass(d)"></div>
-                                                
-                                                <!-- Span Line connecting iterations -->
-                                                <div class="gantt-task-overlay"
-                                                    v-if="proc.startOffset !== proc.endOffset && getProcessLayout(proc).width > 0 && getProcessLayout(proc).left >= -60"
-                                                    style="height: 2px; top: 21px; pointer-events: none; opacity: 0.4; border-radius: 0;"
-                                                    :style="{ left: (getProcessLayout(proc).left + 28) + 'px', width: (getProcessLayout(proc).width - 56) + 'px', background: 'gray' }"
-                                                ></div>
-
-                                                <!-- Iteration Blocks -->
-                                                <template v-for="i in getProcessIterations(proc)" :key="i">
-                                                    <div class="gantt-task-overlay shadow-sm"
-                                                        v-if="getIterationLayout(proc, i).left >= -60"
-                                                        :style="{ left: getIterationLayout(proc, i).left + 'px', top: '8px', width: '56px', height: '28px' }"
-                                                        >
-                                                        <div class="task-bar-content text-center d-flex align-center justify-center font-weight-bold shadow-sm" 
-                                                             :class="getTaskColorClass(proc)" style="color: white; font-size: 0.65em; border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1);">
-                                                            <div class="text-truncate px-1" style="max-width: 54px;">{{ proc.minorCat }}</div>
-                                                        </div>
-                                                    </div>
-                                                </template>
-                                            </div>
-                                        </div>
-                                    </template>
-                                </div>
-                                <div v-else class="text-center py-8">
-                                    <v-progress-circular indeterminate color="green"></v-progress-circular>
-                                    <div class="mt-4 text-grey">スケジュールデータを読み込んでいます...</div>
-                                </div>
-                            </v-card>
+                    <!-- ====== TAB: CALENDAR ====== -->
+                    <div v-show="activeTab === 'calendar'">
+                        <h2 class="text-h6 font-weight-bold text-green-darken-3 mb-4">
+                            <v-icon class="mr-1">mdi-calendar-month</v-icon>作業カレンダー
+                        </h2>
+                        <div class="cal-container">
+                            <div ref="calendarEl"></div>
                         </div>
-                    </v-slide-y-transition>
+                    </div>
 
-                    <!-- ====== VIEW: MAP ====== -->
-                    <v-slide-y-transition hide-on-leave>
-                        <div v-show="currentView === 'map' && !loading">
-                            <h2 class="text-h5 font-weight-bold text-green-darken-3 mb-6 d-flex align-center">
-                                <v-icon color="green-darken-3" class="mr-2">mdi-map</v-icon>
-                                圃場設計マップ
+                    <!-- ====== TAB: WORK LOGS ====== -->
+                    <div v-show="activeTab === 'logs'">
+                        <div class="d-flex align-center justify-space-between mb-4">
+                            <h2 class="text-h6 font-weight-bold text-green-darken-3">
+                                作業記録一覧
                             </h2>
-                            <v-card elevation="2" class="pa-0" rounded="lg">
-                                <div id="main-map" style="height: 650px; width: 100%; z-index: 1;"></div>
-                            </v-card>
+                            <v-btn color="green-darken-2" variant="flat" prepend-icon="mdi-plus"
+                                @click="openNewLogDialog">記録を追加</v-btn>
                         </div>
-                    </v-slide-y-transition>
-
+                        <v-card elevation="0" class="mb-4 pa-3 bg-transparent border rounded-lg log-filter-bar">
+                            <div class="d-flex flex-wrap align-center" style="gap: 12px;">
+                                <v-text-field v-model="filterDate" label="日付" type="date"
+                                    density="compact" hide-details variant="outlined" style="max-width: 170px;"
+                                    clearable></v-text-field>
+                                <v-select v-model="filterWorker" :items="workerFilterOptions" label="名前"
+                                    density="compact" hide-details variant="outlined" style="max-width: 150px;"
+                                    clearable></v-select>
+                                <v-select v-model="filterCrop" :items="cropFilterOptions" label="作物"
+                                    density="compact" hide-details variant="outlined" style="max-width: 150px;"
+                                    clearable></v-select>
+                            </div>
+                        </v-card>
+                        <v-card elevation="2" rounded="lg">
+                            <v-data-table
+                                :headers="logHeaders"
+                                :items="filteredLogs"
+                                :items-per-page="20"
+                                :loading="loading"
+                                fixed-header
+                                height="calc(100vh - 360px)"
+                                no-data-text="作業記録がありません"
+                                class="rounded-lg"
+                            >
+                                <template v-slot:item.log_date="{ item }">
+                                    <v-chip size="small" color="blue-darken-1" variant="flat" class="font-weight-bold">
+                                        {{ item.log_date }}
+                                    </v-chip>
+                                </template>
+                                <template v-slot:item.worker_name="{ item }">
+                                    <div class="d-flex align-center">
+                                        <v-icon size="small" class="mr-1 text-grey">mdi-account</v-icon>
+                                        {{ item.worker_name }}
+                                    </div>
+                                </template>
+                                <template v-slot:item.crop_name="{ item }">
+                                    <span class="font-weight-bold text-green-darken-3">{{ item.crop_name || '—' }}</span>
+                                </template>
+                                <template v-slot:item.work_hours="{ item }">
+                                    <span v-if="item.start_time && item.end_time" class="font-weight-bold">
+                                        {{ calcWorkHours(item) }}
+                                    </span>
+                                    <span v-else class="text-grey">—</span>
+                                </template>
+                                <template v-slot:item.image_urls="{ item }">
+                                    <div v-if="parseImages(item.image_urls).length" class="d-flex" style="gap:4px;">
+                                        <img v-for="(url, i) in parseImages(item.image_urls).slice(0, 3)" :key="i"
+                                            :src="url" class="log-thumbnail"
+                                            @click="previewImage = url; imagePreviewDialog = true" />
+                                        <span v-if="parseImages(item.image_urls).length > 3"
+                                            class="text-caption text-grey align-self-center">
+                                            +{{ parseImages(item.image_urls).length - 3 }}
+                                        </span>
+                                    </div>
+                                    <span v-else class="text-grey">—</span>
+                                </template>
+                                <template v-slot:item.memo="{ item }">
+                                    <span class="text-grey-darken-1 text-caption">{{ item.memo || '' }}</span>
+                                </template>
+                                <template v-slot:item.actions="{ item }">
+                                    <v-btn icon size="small" variant="text" color="red-darken-2"
+                                        @click="confirmDelete(item)">
+                                        <v-icon size="small">mdi-delete</v-icon>
+                                    </v-btn>
+                                </template>
+                            </v-data-table>
+                        </v-card>
+                    </div>
                 </v-container>
             </v-main>
 
-            <!-- Task Report Dialog -->
-            <v-dialog v-model="reportDialog" max-width="500px">
+            <!-- Log Dialog (fullscreen on mobile) -->
+            <v-dialog v-model="logDialog" max-width="500px" persistent class="mobile-fullscreen">
                 <v-card rounded="lg">
                     <v-card-title class="bg-green-darken-2 text-white d-flex align-center">
-                        <v-icon class="mr-2">mdi-clipboard-check</v-icon>
-                        作業完了報告
-                    </v-card-title>
-
-                    <v-card-text class="pt-6">
-                        <div class="text-subtitle-1 font-weight-bold mb-4">{{ selectedTask?.cropName }} - {{
-                            selectedTask?.minorCat }}</div>
-
-                        <v-text-field v-model.number="reportForm.actualHours" label="実績工数 (時間)" type="number"
-                            :hint="`予定工数(自動計算): ${selectedTask?.estimatedHours !== undefined ? selectedTask.estimatedHours : (selectedTask?.baseWorkHours || 0)} h`"
-                            persistent-hint variant="outlined" color="green-darken-2"
-                            prepend-inner-icon="mdi-clock-outline"></v-text-field>
-
-                        <v-text-field v-if="selectedTask?.materialName" v-model.number="reportForm.actualMaterialQty"
-                            :label="`資材使用量 (${selectedTask?.materialUnit})`"
-                            :hint="`予定: ${selectedTask?.materialQty} ${selectedTask?.materialUnit} / ${selectedTask?.materialName}`"
-                            persistent-hint type="number" variant="outlined" color="green-darken-2" class="mt-2"
-                            prepend-inner-icon="mdi-flask"></v-text-field>
-
-                        <v-text-field v-model="reportForm.workerName" label="作業者名" variant="outlined"
-                            color="green-darken-2" class="mt-4" prepend-inner-icon="mdi-account"></v-text-field>
-
-                        <v-textarea v-model="reportForm.memo" label="特記事項・備考" variant="outlined" color="green-darken-2"
-                            rows="3"></v-textarea>
-                    </v-card-text>
-
-                    <v-card-actions class="pa-4 bg-grey-lighten-4">
-                        <v-spacer></v-spacer>
-                        <v-btn color="grey-darken-2" variant="text" @click="reportDialog = false">キャンセル</v-btn>
-                        <v-btn color="green-darken-3" variant="flat" :loading="saving"
-                            @click="submitReport">完了として記録</v-btn>
-                    </v-card-actions>
-                </v-card>
-            </v-dialog>
-
-            <!-- Field Info Dialog -->
-            <v-dialog v-model="fieldDialog" max-width="600px">
-                <v-card rounded="lg" v-if="selectedFieldInfo">
-                    <v-card-title class="bg-blue-darken-2 text-white d-flex align-center">
-                        <v-icon class="mr-2">mdi-map-marker-radius</v-icon>
-                        圃場情報: {{ selectedFieldName }}
+                        <v-icon class="mr-2">mdi-pencil-plus</v-icon>
+                        作業記録
                     </v-card-title>
                     <v-card-text class="pt-6">
-                        <v-row>
-                            <v-col cols="6" v-if="selectedFieldInfo.folder">
-                                <div class="text-caption text-grey">レイヤー</div>
-                                <div class="text-body-1 font-weight-bold">{{ selectedFieldInfo.folder }}</div>
-                            </v-col>
-                            <v-col cols="6" v-if="selectedFieldInfo.repElev">
-                                <div class="text-caption text-grey">代表標高</div>
-                                <div class="text-body-1 font-weight-bold">{{ selectedFieldInfo.repElev }} m</div>
-                            </v-col>
-                            <v-col cols="6" v-if="selectedFieldInfo.areaTotal">
-                                <div class="text-caption text-grey">面積</div>
-                                <div class="text-body-1 font-weight-bold">{{ selectedFieldInfo.areaTotal.toFixed(1) }} ㎡
-                                </div>
-                            </v-col>
-                            <v-col cols="6" v-if="selectedFieldInfo.perimeter">
-                                <div class="text-caption text-grey">外周</div>
-                                <div class="text-body-1 font-weight-bold">{{ selectedFieldInfo.perimeter.toFixed(1) }} m
-                                </div>
-                            </v-col>
+                        <v-text-field v-model="logForm.log_date" label="日付" type="date"
+                            variant="outlined" color="green-darken-2" class="mb-2"
+                            prepend-inner-icon="mdi-calendar"></v-text-field>
 
-                            <!-- Planting Details Block -->
-                            <v-col cols="12"
-                                v-if="selectedFieldInfo.folder === '耕作地' && selectedFieldInfo.totalPlantCount">
-                                <v-card variant="flat" class="bg-grey-lighten-4 pa-3 rounded-lg border">
-                                    <div class="d-flex align-center justify-space-between mb-2">
-                                        <div class="text-body-2 font-weight-bold text-grey-darken-2">定植本数</div>
-                                        <div class="text-h6 font-weight-bold text-green-darken-3">{{
-                                            selectedFieldInfo.totalPlantCount }} <span class="text-caption">本</span>
-                                        </div>
-                                    </div>
-                                    <v-divider class="mb-2"></v-divider>
-                                    <div class="text-caption text-grey mb-1">ー以下は内訳ー</div>
-                                    <v-row dense>
-                                        <v-col cols="6">
-                                            <div class="text-caption"><b>畝数:</b> {{ selectedFieldInfo.totalRidgeCount }}
-                                                本
-                                            </div>
-                                        </v-col>
-                                        <v-col cols="6">
-                                            <div class="text-caption"><b>畝幅:</b> {{ selectedFieldInfo.ridgeWidth }} cm
-                                            </div>
-                                        </v-col>
-                                        <v-col cols="6">
-                                            <div class="text-caption"><b>畝間幅:</b> {{ selectedFieldInfo.ridgeGap }} cm
-                                            </div>
-                                        </v-col>
-                                        <v-col cols="6">
-                                            <div class="text-caption"><b>条数:</b> {{ selectedFieldInfo.rowCount }} 条
-                                            </div>
-                                        </v-col>
-                                        <v-col cols="6">
-                                            <div class="text-caption"><b>株間:</b> {{ selectedFieldInfo.plantSpacing }} cm
-                                            </div>
-                                        </v-col>
-                                    </v-row>
-                                </v-card>
+                        <v-row dense class="mb-2 time-row-mobile">
+                            <v-col cols="4">
+                                <v-select v-model="logForm.start_time" :items="timeSlots" label="開始"
+                                    variant="outlined" color="green-darken-2" density="compact"
+                                    clearable></v-select>
                             </v-col>
-
-                            <v-col cols="12" v-if="selectedFieldInfo.notes">
-                                <div class="text-caption text-grey">備考</div>
-                                <div class="text-body-2">{{ selectedFieldInfo.notes }}</div>
+                            <v-col cols="4">
+                                <v-select v-model="logForm.end_time" :items="timeSlots" label="終了"
+                                    variant="outlined" color="green-darken-2" density="compact"
+                                    clearable></v-select>
                             </v-col>
-                            <v-col cols="12" v-if="selectedFieldInfo.locationUrl">
-                                <v-btn :href="selectedFieldInfo.locationUrl" target="_blank"
-                                    prepend-icon="mdi-google-maps" variant="outlined" color="blue-darken-2" block>
-                                    Google Mapsで開く
-                                </v-btn>
-                            </v-col>
-                            <!-- Interactive Polygon Map -->
-                            <v-col cols="12" v-if="selectedFieldInfo.polygonCoords" class="mt-2">
-                                <div class="text-caption text-grey font-weight-bold mb-1">農地ピン位置（ポリゴン）</div>
-                                <div id="polygon-map"
-                                    style="height: 350px; border-radius: 8px; border: 1px solid #e0e0e0; position: relative; z-index: 1;">
-                                    <div id="modal-heatmap-legend"
-                                        style="position: absolute; bottom: 20px; right: 20px; background: rgba(255, 255, 255, 0.9); padding: 10px; border-radius: 8px; z-index: 1000; box-shadow: 0 2px 5px rgba(0,0,0,0.2); display: none; font-size: 12px; pointer-events: none;">
-                                        <div class="d-flex align-center">
-                                            <div class="legend-gradient"></div>
-                                            <div class="d-flex flex-column justify-space-between"
-                                                style="height: 100px;">
-                                                <span id="modal-legend-max">0m</span>
-                                                <span>標高差</span>
-                                                <span id="modal-legend-min">0m</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+                            <v-col cols="4" class="break-col-mobile">
+                                <v-select v-model="logForm.break_minutes" :items="breakSlots" label="休憩(分)"
+                                    variant="outlined" color="green-darken-2" density="compact"></v-select>
                             </v-col>
                         </v-row>
+
+                        <v-select v-model="logForm.worker_name" :items="workerSelectItems" label="名前"
+                            variant="outlined" color="green-darken-2" class="mb-2"
+                            prepend-inner-icon="mdi-account"></v-select>
+                        <v-text-field v-if="logForm.worker_name === 'その他'" v-model="logForm.worker_name_other"
+                            label="名前を入力" variant="outlined" color="green-darken-2" class="mb-2"
+                            prepend-inner-icon="mdi-account-edit"></v-text-field>
+
+                        <v-select v-model="logForm.crop_name" :items="masterCropOptions" label="対象作物"
+                            variant="outlined" color="green-darken-2" class="mb-2"
+                            prepend-inner-icon="mdi-leaf" clearable></v-select>
+                        <v-select v-model="logForm.variety_name" :items="masterVarietyOptions" label="対象品種"
+                            variant="outlined" color="green-darken-2" class="mb-2"
+                            prepend-inner-icon="mdi-flower" clearable
+                            :disabled="!logForm.crop_name"></v-select>
+                        <v-select v-model="logForm.work_description" :items="masterWorkOptions" label="作業"
+                            variant="outlined" color="green-darken-2" class="mb-2"
+                            prepend-inner-icon="mdi-hammer-wrench" clearable></v-select>
+
+                        <v-textarea v-model="logForm.memo" label="メモ" variant="outlined"
+                            color="green-darken-2" rows="2" class="mb-2"
+                            prepend-inner-icon="mdi-note-text"></v-textarea>
+
+                        <!-- Task link indicator -->
+                        <v-alert v-if="logForm.task_ref" type="info" variant="tonal" density="compact" class="mb-2">
+                            タスク「{{ logForm._taskLabel }}」に紐付け
+                        </v-alert>
+
+                        <!-- Image Upload -->
+                        <div class="mb-3">
+                            <div class="text-body-2 font-weight-bold text-grey-darken-2 mb-2">
+                                <v-icon size="small" class="mr-1">mdi-camera</v-icon>
+                                写真を添付 ({{ formImageUrls.length }}/5)
+                            </div>
+                            <div class="preview-grid mb-2" v-if="formImageUrls.length > 0">
+                                <div v-for="(url, i) in formImageUrls" :key="i" class="preview-item">
+                                    <img :src="url" @click="previewImage = url; imagePreviewDialog = true" />
+                                    <v-btn icon size="x-small" color="red" variant="flat" class="remove-btn"
+                                        @click="removeFormImage(i)">
+                                        <v-icon size="x-small">mdi-close</v-icon>
+                                    </v-btn>
+                                </div>
+                            </div>
+                            <v-btn v-if="formImageUrls.length < 5" variant="outlined" color="green-darken-2"
+                                prepend-icon="mdi-plus" :loading="uploading" block
+                                @click="$refs.fileInput.click()">写真を追加</v-btn>
+                            <input ref="fileInput" type="file" accept="image/*" multiple
+                                style="display:none" @change="handleFileSelect" />
+                        </div>
                     </v-card-text>
                     <v-card-actions class="pa-4 bg-grey-lighten-4">
                         <v-spacer></v-spacer>
-                        <v-btn color="grey-darken-2" variant="text" @click="fieldDialog = false">閉じる</v-btn>
+                        <v-btn color="grey-darken-2" variant="text" @click="logDialog = false">キャンセル</v-btn>
+                        <v-btn color="green-darken-3" variant="flat" :loading="saving"
+                            @click="saveLog">保存</v-btn>
                     </v-card-actions>
                 </v-card>
             </v-dialog>
 
-            <!-- Snackbar for notifications -->
+            <!-- Delete Dialog -->
+            <v-dialog v-model="deleteDialog" max-width="400px">
+                <v-card rounded="lg">
+                    <v-card-title class="bg-red-darken-2 text-white">
+                        <v-icon class="mr-2">mdi-alert</v-icon>削除確認
+                    </v-card-title>
+                    <v-card-text class="pt-6">この作業記録を削除しますか？</v-card-text>
+                    <v-card-actions class="pa-4">
+                        <v-spacer></v-spacer>
+                        <v-btn variant="text" @click="deleteDialog = false">キャンセル</v-btn>
+                        <v-btn color="red-darken-2" variant="flat" @click="deleteLog">削除</v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
+
+            <!-- Image Preview -->
+            <v-dialog v-model="imagePreviewDialog" max-width="700px">
+                <v-card rounded="lg">
+                    <v-card-text class="pa-2">
+                        <img :src="previewImage" style="width: 100%; border-radius: 8px;" />
+                    </v-card-text>
+                    <v-card-actions>
+                        <v-spacer></v-spacer>
+                        <v-btn variant="text" @click="imagePreviewDialog = false">閉じる</v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
+
+            <!-- Map Modal -->
+            <v-dialog v-model="mapModal.show" max-width="1200">
+                <v-card height="85vh" class="d-flex flex-column">
+                    <v-card-title class="bg-blue-grey-darken-3 text-white d-flex justify-space-between align-center py-2">
+                        <div><v-icon class="mr-2 pb-1">mdi-map-marker-path</v-icon>圃場マップビュー</div>
+                        <v-btn icon="mdi-close" variant="text" size="small" @click="mapModal.show = false"></v-btn>
+                    </v-card-title>
+                    <v-card-text class="pa-0 flex-grow-1">
+                        <iframe v-if="mapModal.show" :src="`/map-editor.html?readonly=true&fields=${encodeURIComponent(mapModal.fields.join(','))}`" style="width:100%;height:100%;border:none;"></iframe>
+                    </v-card-text>
+                </v-card>
+            </v-dialog>
+
+            <!-- Calendar Detail Dialog -->
+            <v-dialog v-model="calendarDetail.show" max-width="700">
+                <v-card rounded="lg">
+                    <v-card-title class="d-flex align-center" :class="'bg-' + (calendarDetail.color || 'teal-darken-2')">
+                        <v-icon class="mr-2 text-white">mdi-calendar-text</v-icon>
+                        <span class="text-white font-weight-bold">{{ calendarDetail.title }}</span>
+                        <v-spacer></v-spacer>
+                        <v-btn icon="mdi-close" variant="text" size="small" class="text-white" @click="calendarDetail.show = false"></v-btn>
+                    </v-card-title>
+                    <v-card-text class="pt-4">
+                        <div class="text-body-2 text-grey-darken-1 mb-3">
+                            <v-icon size="small" class="mr-1">mdi-calendar</v-icon>{{ calendarDetail.date }}
+                        </div>
+                        <div v-if="calendarDetail.workDetails" class="text-body-2 mb-3 pa-2 bg-grey-lighten-4 rounded">
+                            <v-icon size="small" class="mr-1">mdi-text-box-outline</v-icon>{{ calendarDetail.workDetails }}
+                        </div>
+                        <div v-for="(item, i) in calendarDetail.details" :key="i" class="mb-3 pa-3 rounded border" :style="item.taskRef && taskStatusMap[item.taskRef] ? 'opacity:0.4' : ''">
+                            <div class="d-flex align-center mb-2">
+                                <v-icon size="small" color="green-darken-2" class="mr-1">mdi-sprout</v-icon>
+                                <span class="font-weight-bold text-body-1">{{ item.variety }}</span>
+                                <v-chip v-if="item.cropType" size="x-small" class="ml-2" color="grey">{{ item.cropType }}</v-chip>
+                                <v-spacer></v-spacer>
+                                <v-chip v-if="item.taskRef && taskStatusMap[item.taskRef]" size="x-small" color="grey" variant="flat">
+                                    <v-icon size="x-small" class="mr-1">mdi-check</v-icon>完了
+                                </v-chip>
+                            </div>
+                            <div class="text-body-2 mb-2" style="cursor:pointer" @click="openMapModal([item.field])">
+                                <v-icon size="x-small" class="mr-1" color="blue">mdi-map-marker</v-icon>
+                                <span class="text-blue text-decoration-underline">{{ item.field }}</span>
+                            </div>
+                            <v-row dense class="text-caption">
+                                <v-col v-if="item.maxPlantable" cols="6" sm="4">
+                                    <div class="text-grey">定植数</div>
+                                    <div class="font-weight-bold">{{ item.maxPlantable }} 株</div>
+                                </v-col>
+                                <v-col v-if="item.sowCount" cols="6" sm="4">
+                                    <div class="text-grey">播種数</div>
+                                    <div class="font-weight-bold">{{ item.sowCount }} 粒</div>
+                                </v-col>
+                                <v-col v-if="item.nurseryTrays" cols="6" sm="4">
+                                    <div class="text-grey">トレイ数</div>
+                                    <div class="font-weight-bold">{{ item.nurseryTrays }} 枚</div>
+                                </v-col>
+                                <v-col v-if="item.mulchLength" cols="6" sm="4">
+                                    <div class="text-grey">マルチ長</div>
+                                    <div class="font-weight-bold">{{ item.mulchLength }} m</div>
+                                </v-col>
+                                <v-col v-if="item.yieldAmount" cols="6" sm="4">
+                                    <div class="text-grey">収穫見込</div>
+                                    <div class="font-weight-bold">{{ item.yieldAmount }} {{ item.yieldUnit }}</div>
+                                </v-col>
+                            </v-row>
+                            <v-divider class="my-2"></v-divider>
+                            <div class="d-flex align-center" style="gap:6px;">
+                                <v-btn v-if="item.taskRef && !taskStatusMap[item.taskRef]" size="small" variant="outlined" color="grey-darken-1" @click="completeCalendarTask(item)" prepend-icon="mdi-checkbox-blank-outline" class="text-none">完了にする</v-btn>
+                                <v-btn v-if="item.taskRef && taskStatusMap[item.taskRef]" size="small" variant="outlined" color="grey" @click="completeCalendarTask(item)" prepend-icon="mdi-undo" class="text-none">未完了に戻す</v-btn>
+                                <v-btn size="small" variant="outlined" color="green-darken-2" @click="logFromCalendarTask(item)" prepend-icon="mdi-pencil-plus" class="text-none">作業記録</v-btn>
+                            </div>
+                        </div>
+                    </v-card-text>
+                </v-card>
+            </v-dialog>
+
             <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
-                {{ snackbar.message }}
+                {{ snackbar.text }}
                 <template v-slot:actions>
                     <v-btn variant="text" @click="snackbar.show = false">閉じる</v-btn>
                 </template>
             </v-snackbar>
 
+            <!-- Mobile Bottom Navigation -->
+            <div class="mobile-bottom-nav">
+                <div class="nav-items">
+                    <div class="nav-item" :class="{active: activeTab === 'tasks'}" @click="activeTab = 'tasks'">
+                        <i class="mdi mdi-format-list-checks"></i>
+                        <span>タスク</span>
+                    </div>
+                    <div class="nav-item" :class="{active: activeTab === 'calendar'}" @click="activeTab = 'calendar'">
+                        <i class="mdi mdi-calendar-month"></i>
+                        <span>カレンダー</span>
+                    </div>
+                    <div class="nav-item" :class="{active: activeTab === 'logs'}" @click="activeTab = 'logs'">
+                        <i class="mdi mdi-clipboard-list"></i>
+                        <span>作業記録</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mobile FAB (visible on logs tab) -->
+            <div v-if="activeTab === 'logs'" class="mobile-fab" @click="openNewLogDialog">
+                <i class="mdi mdi-plus"></i>
+            </div>
         </v-app>
     </div>
 
-    <!-- Vue & Vuetify Scripts -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vuetify@3.4.0/dist/vuetify.min.js"></script>
-
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar-scheduler@6.1.11/index.global.min.js"></script>
+    <script src="/js/utils.js"></script>
+    <script src="/js/color-map.js"></script>
+    <script src="/js/api.js"></script>
+    <script src="/js/task-generator.js"></script>
+    <script src="/js/calendar.js"></script>
     <script>
-        const { createApp, ref, computed, onMounted } = Vue;
-        const { createVuetify } = Vuetify;
-
-        const vuetify = createVuetify();
-
-        const app = createApp({
-            setup() {
-                const drawer = ref(false);
-                const currentView = ref('tasks');
-                const isDark = ref(false);
-                const loading = ref(false);
-                const error = ref('');
-                const scheduleData = ref([]);
-                const selectedCrops = ref([]);
-
-                const availableCrops = computed(() => {
-                    const crops = new Set();
-                    scheduleData.value.forEach(plan => {
-                        if (plan.cropName) {
-                            crops.add(plan.cropName.split('_')[0]);
-                        }
-                    });
-                    return Array.from(crops).sort();
-                });
-
-                // --- Collapsible Rows State ---
-                const expandedRows = ref({}); // { planId: boolean }
-
-                const toggleRow = (planId) => {
-                    expandedRows.value[planId] = !expandedRows.value[planId];
-                };
-
-                const filteredScheduleData = computed(() => {
-                    const filtered = selectedCrops.value.length === 0 ? scheduleData.value : scheduleData.value.filter(plan => {
-                        const crop = plan.cropName.split('_')[0];
-                        return selectedCrops.value.includes(crop);
-                    });
-
-                    const groups = {};
-                    filtered.forEach(plan => {
-                        const key = plan.cropName + '_' + plan.baseDate;
-                        // 計算: 圃場由来のマルチ長
-                        let fieldMulchLen = 0;
-                        if (plan.field && fieldsData.value[plan.field] && fieldsData.value[plan.field].ridges) {
-                            fieldsData.value[plan.field].ridges.forEach(r => {
-                                if (r.length) {
-                                    fieldMulchLen += (r.length + 2); // 前後1mずつ余分に
-                                }
-                            });
-                        }
-
-                        if (!groups[key]) {
-                            groups[key] = {
-                                planId: key,
-                                cropName: plan.cropName,
-                                baseDate: plan.baseDate,
-                                harvestDate: plan.harvestDate,
-                                fields: [plan.field],
-                                totalPlantingCount: plan.plantingCount || 0,
-                                totalSowingCount: plan.sowingCount || 0,
-                                totalHarvestYield: plan.harvestYield || 0,
-                                harvestUnit: plan.harvestUnit || "",
-                                totalArea: fieldsData.value[plan.field]?.areaTotal || 0,
-                                totalMulchLength: fieldMulchLen,
-                                tasks: plan.tasks,
-                                processes: plan.processes
-                            };
-                        } else {
-                            if (!groups[key].fields.includes(plan.field)) {
-                                groups[key].fields.push(plan.field);
-                                groups[key].totalArea += (fieldsData.value[plan.field]?.areaTotal || 0);
-                                groups[key].totalMulchLength += fieldMulchLen;
-                            }
-                            groups[key].totalPlantingCount += (plan.plantingCount || 0);
-                            groups[key].totalSowingCount += (plan.sowingCount || 0);
-                            groups[key].totalHarvestYield += (plan.harvestYield || 0);
-                            // Keep first encountered unit if missing later
-                            if (!groups[key].harvestUnit && plan.harvestUnit) {
-                                groups[key].harvestUnit = plan.harvestUnit;
-                            }
-                        }
-                    });
-
-                    // Sort by baseDate
-                    return Object.values(groups).sort((a, b) => new Date(a.baseDate) - new Date(b.baseDate));
-                });
-
-                const filteredTotals = computed(() => {
-                    const totalsByCrop = {};
-
-                    filteredScheduleData.value.forEach(plan => {
-                        const cropBase = plan.cropName.split('_')[0] || plan.cropName;
-
-                        if (!totalsByCrop[cropBase]) {
-                            totalsByCrop[cropBase] = {
-                                area: 0,
-                                plantingCount: 0,
-                                sowingCount: 0,
-                                trayCount: 0,
-                                mulchLength: 0,
-                                harvestYield: 0,
-                                harvestUnit: ''
-                            };
-                        }
-
-                        totalsByCrop[cropBase].area += plan.totalArea;
-                        totalsByCrop[cropBase].plantingCount += plan.totalPlantingCount;
-                        totalsByCrop[cropBase].sowingCount += plan.totalSowingCount;
-                        totalsByCrop[cropBase].mulchLength += plan.totalMulchLength;
-                        totalsByCrop[cropBase].harvestYield += plan.totalHarvestYield;
-                        totalsByCrop[cropBase].trayCount += Math.ceil(plan.totalSowingCount / 128);
-
-                        // Keep first valid unit encountered
-                        if (!totalsByCrop[cropBase].harvestUnit && plan.harvestUnit) {
-                            totalsByCrop[cropBase].harvestUnit = plan.harvestUnit;
-                        }
-                    });
-
-                    return totalsByCrop;
-                });
-
-                // Field Info Data
-                const fieldsData = ref({});
-                const fieldDialog = ref(false);
-                const selectedFieldName = ref('');
-                const selectedFieldInfo = computed(() => {
-                    return fieldsData.value[selectedFieldName.value] || null;
-                });
-
-                // Report Dialog
-                const reportDialog = ref(false);
-                const saving = ref(false);
-                const selectedTask = ref(null);
-                const reportForm = ref({
-                    actualHours: 0,
-                    actualMaterialQty: 0,
-                    workerName: '',
-                    memo: ''
-                });
-
-                // Snackbar
-                const snackbar = ref({
-                    show: false,
-                    color: 'success',
-                    message: ''
-                });
-
-                // Map Data
-                const mapData = ref([]);
-                let mainLeafletMap = null;
-                let modalLeafletMap = null;
-
-                // Icons Helper
-
-                const getCropColor = (cropName) => {
-                    if (!cropName) return 'green';
-                    if (cropName.includes('とうもろこし')) return 'yellow-darken-3';
-                    if (cropName.includes('トマト')) return 'red-darken-2';
-                    if (cropName.includes('ねぎ')) return 'light-green-darken-3';
-                    if (cropName.includes('じゃがいも') || cropName.includes('芋')) return 'brown-lighten-1';
-                    if (cropName.includes('ピーマン') || cropName.includes('パプリカ') || cropName.includes('オクラ')) return 'green-darken-1';
-                    if (cropName.includes('キャベツ') || cropName.includes('白菜') || cropName.includes('レタス') || cropName.includes('ブロッコリー')) return 'green-lighten-2';
-                    if (cropName.includes('にんじん')) return 'orange-darken-2';
-                    if (cropName.includes('米') || cropName.includes('稲') || cropName.includes('麦')) return 'amber-darken-2';
-                    if (cropName.includes('玉ねぎ')) return 'orange-lighten-2';
-                    if (cropName.includes('大根') || cropName.includes('だいこん')) return 'grey-lighten-1';
-                    if (cropName.includes('いちご')) return 'red-accent-3';
-                    return 'green';
-                };
-
-                const formatCropTitle = (fullName) => {
-                    if (!fullName) return '';
-                    return fullName.split('_')[0];
-                };
-
-                const formatCropSubtitle = (fullName) => {
-                    if (!fullName) return '';
-                    const parts = fullName.split('_');
-                    if (parts.length <= 1) return '';
-                    return parts.slice(1).join(' ');
-                };
-
-                // Helpers
-                const todayStr = (() => {
-                    const d = new Date();
-                    const p = (n) => n.toString().padStart(2, '0');
-                    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-                })();
-
-                const todayDateStr = computed(() => {
-                    const d = new Date();
-                    return `${d.getMonth() + 1}月${d.getDate()}日`;
-                });
-
-                const todayTasks = computed(() => {
-                    if (!scheduleData.value) return [];
-                    const tasks = [];
-                    scheduleData.value.forEach(plan => {
-                        plan.tasks.forEach(t => {
-                            // Get tasks scheduled for today or earlier (overdue)
-                            if (t.targetDate <= todayStr && t.status !== '完了') {
-                                tasks.push({
-                                    ...t,
-                                    planId: plan.planId,
-                                    cropName: plan.cropName,
-                                    field: plan.field
-                                });
-                            }
-                        });
-                    });
-                    // Sort tasks by date (oldest/most overdue first)
-                    return tasks.sort((a, b) => a.targetDateObj - b.targetDateObj);
-                });
-
-                // --- Unified Gantt Chart Timeline Computations ---
-                const timelineDates = computed(() => {
-                    if (!scheduleData.value || scheduleData.value.length === 0) return [];
-
-                    let minTime = Infinity;
-                    let maxTime = -Infinity;
-
-                    scheduleData.value.forEach(plan => {
-                        plan.tasks.forEach(t => {
-                            if (t.targetDateObj < minTime) minTime = t.targetDateObj;
-                            if (t.targetDateObj > maxTime) maxTime = t.targetDateObj;
-                        });
-                        if (plan.processes) {
-                            plan.processes.forEach(p => {
-                                if (p.startDateObj < minTime) minTime = p.startDateObj;
-                                if (p.endDateObj > maxTime) maxTime = p.endDateObj;
-                            });
-                        }
-                    });
-
-                    if (minTime === Infinity) {
-                        minTime = new Date().getTime();
-                        maxTime = new Date().getTime() + (7 * 24 * 60 * 60 * 1000);
-                    }
-
-                    const DAY_MS = 24 * 60 * 60 * 1000;
-                    // Add buffer to left and right
-                    const startDate = new Date(minTime - (4 * DAY_MS));
-                    const endDate = new Date(maxTime + (10 * DAY_MS));
-
-                    const dates = [];
-                    let currentDate = new Date(startDate);
-                    const daysStr = ['日', '月', '火', '水', '木', '金', '土'];
-
-                    while (currentDate <= endDate) {
-                        const y = currentDate.getFullYear();
-                        const m = (currentDate.getMonth() + 1).toString().padStart(2, '0');
-                        const d = currentDate.getDate().toString().padStart(2, '0');
-
-                        dates.push({
-                            fullDateStr: `${y}-${m}-${d}`,
-                            month: (currentDate.getMonth() + 1).toString(),
-                            date: d.toString(),
-                            day: daysStr[currentDate.getDay()]
-                        });
-
-                        currentDate.setDate(currentDate.getDate() + 1);
-                    }
-
-                    return dates;
-                });
-
-                // --- Layout Algorithm & Styling Helpers ---
-                const isHoliday = (dateStr) => {
-                    const holidays = [
-                        "2026-01-01", "2026-01-12", "2026-02-11", "2026-02-23", "2026-03-20",
-                        "2026-04-29", "2026-05-03", "2026-05-04", "2026-05-05", "2026-05-06",
-                        "2026-07-20", "2026-08-11", "2026-09-21", "2026-09-22", "2026-09-23",
-                        "2026-10-12", "2026-11-03", "2026-11-23"
-                    ];
-                    return holidays.includes(dateStr);
-                };
-
-                const getDayClass = (d) => {
-                    if (d.day === '日' || isHoliday(d.fullDateStr)) return 'bg-holiday text-red';
-                    if (d.day === '土') return 'bg-saturday text-blue';
-                    return '';
-                };
-
-                
-                const getProcessIterations = (proc) => {
-                    if (!proc.interval || proc.interval <= 0) return [0];
-                    const diff = proc.endOffset - proc.startOffset;
-                    if (diff <= 0) return [0];
-                    const count = Math.floor(diff / proc.interval) + 1;
-                    let res = [];
-                    for(let i=0; i<count; i++) res.push(i);
-                    return res;
-                };
-
-                const getIterationLayout = (proc, iterationIdx) => {
-                    if (!timelineDates.value || timelineDates.value.length === 0) return { left: -999 };
-                    const d1Str = timelineDates.value[0].fullDateStr;
-                    const d1Date = new Date(d1Str);
-                    const MS_PER_DAY = 1000 * 60 * 60 * 24;
-                    const utc1 = Date.UTC(d1Date.getFullYear(), d1Date.getMonth(), d1Date.getDate());
-                    
-                    let sDate = new Date(proc.startDate);
-                    // Handle iterating via Javascript Date math
-                    sDate.setDate(sDate.getDate() + (iterationIdx * proc.interval));
-                    
-                    const utcTarget = Date.UTC(sDate.getFullYear(), sDate.getMonth(), sDate.getDate());
-                    const leftDays = Math.floor((utcTarget - utc1) / MS_PER_DAY);
-                    
-                    return { left: leftDays * 60 + 2 }; 
-                };
-
-                const getProcessLayout = (proc) => {
-                    if (!timelineDates.value || timelineDates.value.length === 0) return { left: 0, width: 0 };
-                    
-                    const d1Str = timelineDates.value[0].fullDateStr;
-                    // convert to local midnight time to avoid timezone drift
-                    const d1Date = new Date(d1Str);
-                    const sDate = new Date(proc.startDate);
-                    const eDate = new Date(proc.endDate);
-                    
-                    const MS_PER_DAY = 1000 * 60 * 60 * 24;
-                    // We use UTC trick to get exact day diff
-                    const utc1 = Date.UTC(d1Date.getFullYear(), d1Date.getMonth(), d1Date.getDate());
-                    const utc2 = Date.UTC(sDate.getFullYear(), sDate.getMonth(), sDate.getDate());
-                    const utc3 = Date.UTC(eDate.getFullYear(), eDate.getMonth(), eDate.getDate());
-                    
-                    const leftDays = Math.floor((utc2 - utc1) / MS_PER_DAY);
-                    const widthDays = Math.floor((utc3 - utc2) / MS_PER_DAY) + 1;
-                    
-                    return {
-                        left: leftDays * 60,
-                        width: Math.max(widthDays, 1) * 60
-                    };
-                };
-
-                const getTaskColorClass = (task) => {
-                    if (!task.majorCat) return 'task-default';
-                    const cat = task.majorCat;
-                    if (cat.includes('播種') || cat.includes('育苗')) return 'task-blue';
-                    if (cat.includes('準備') || cat.includes('整地') || cat.includes('土づくり')) return 'task-brown';
-                    if (cat.includes('定植')) return 'task-green';
-                    if (cat.includes('管理') || cat.includes('施肥') || cat.includes('追肥')) return 'task-teal';
-                    if (cat.includes('防除') || cat.includes('消毒')) return 'task-red';
-                    if (cat.includes('収穫')) return 'task-orange';
-                    if (cat.includes('片付け') || cat.includes('撤去')) return 'task-grey';
-                    if (task.minorCat && task.minorCat.includes('収穫')) return 'task-orange';
-                    return 'task-default';
-                };
-
-                const getEstimatedHours = (task, plan) => {
-                    if (!task.baseWorkHours) return 0;
-                    let scale = 1;
-                    switch (task.unitKbn) {
-                        case '10aあたり':
-                        case '10a':
-                            scale = (plan.totalArea > 0 ? plan.totalArea : 1000) / 1000.0;
-                            break;
-                        case '100株あたり':
-                        case '株':
-                            scale = (plan.totalPlantingCount > 0 ? plan.totalPlantingCount : 100) / 100.0;
-                            if (task.unitKbn === '株') scale = scale * 100.0; // reverse to 1 plant
-                            break;
-                        case '畝':
-                            // approximate ridge count from mulch length (assume 2m lost per ridge padding, avg ridge maybe 10m? Just use straight mulch / 10m or totalPlantingCount / 10 if not available)
-                            // or use the fact that farmers know their fields. Let's just use mulchLength / 10m.
-                            scale = (plan.totalMulchLength > 0 ? plan.totalMulchLength / 10.0 : 1);
-                            break;
-                        case '1回あたり':
-                        case '回':
-                        case '全体':
-                            scale = 1;
-                            break;
-                        case '耕作面積': scale = plan.totalArea || 1; break;
-                        case '育苗トレイ': scale = Math.ceil((plan.totalSowingCount || 0) / 128) || 1; break;
-                        case '外周長':
-                            scale = plan.fields.reduce((sum, f) => sum + (fieldsData.value[f]?.perimeter || 0), 0) || 1;
-                            break;
-                        case '畝長さ': scale = plan.totalMulchLength || 1; break;
-                        case '定植苗': scale = plan.totalPlantingCount || 1; break;
-                        case '収穫量': scale = plan.totalHarvestYield || 1; break;
-                        default: scale = 1;
-                    }
-
-                    // Apply baseQty division (e.g. 1畝 => total ridges / 1, 2畝 => total ridges / 2)
-                    const bQty = task.baseQty && task.baseQty > 0 ? task.baseQty : 1;
-                    scale = scale / bQty;
-
-                    const qty = task.targetQty || 1;
-
-                    let baseHours = task.baseWorkHours;
-                    if (task.workHourUnit && (task.workHourUnit.includes('分') || task.workHourUnit.toLowerCase().includes('min'))) {
-                        baseHours = baseHours / 60.0;
-                    } else if (task.workHourUnit === '秒' || (task.workHourUnit && task.workHourUnit.toLowerCase().includes('sec'))) {
-                        baseHours = baseHours / 3600.0;
-                    } else if (task.workHourUnit === '人日') {
-                        baseHours = baseHours * 8.0;
-                    }
-
-                    let hours = (scale / qty) * baseHours;
-                    return parseFloat(hours.toFixed(1));
-                };
-
-                const getTaskLayout = (plan) => {
-                    const layout = [];
-                    const levels = [];
-                    const tasks = [...plan.tasks].sort((a, b) => a.targetDateObj - b.targetDateObj);
-
-                    // --- Merge continuous overlapping tasks ---
-                    const mergedBlocks = [];
-                    const continuousGroups = {}; // key: baseTaskId -> array of tasks
-
-                    tasks.forEach(t => {
-                        const dateIdx = timelineDates.value.findIndex(d => d.fullDateStr === t.targetDate);
-                        if (dateIdx === -1) return;
-
-                        // Compute scalable estimated hours based on field property
-                        t.estimatedHours = getEstimatedHours(t, plan);
-
-                        if (t.isContinuous) {
-                            const baseIdMatch = t.taskId.match(/^(.*)-rep\d+$/);
-                            const baseId = baseIdMatch ? baseIdMatch[1] : t.taskId;
-                            if (!continuousGroups[baseId]) continuousGroups[baseId] = [];
-                            continuousGroups[baseId].push({ ...t, dateIdx });
-                        } else {
-                            mergedBlocks.push({
-                                data: t,
-                                startIdx: dateIdx - 3,
-                                endIdx: dateIdx + 3,
-                                isContinuousGroup: false,
-                                mergedCount: 1
-                            });
-                        }
-                    });
-
-                    // Group continuous arrays
-                    Object.values(continuousGroups).forEach(group => {
-                        // group is sorted by date because `tasks` was sorted
-                        let currentBlock = null;
-
-                        group.forEach(t => {
-                            const tStart = t.dateIdx - 3;
-                            const tEnd = t.dateIdx + 3;
-
-                            if (!currentBlock) {
-                                currentBlock = {
-                                    data: t,
-                                    startIdx: tStart,
-                                    endIdx: tEnd,
-                                    isContinuousGroup: true,
-                                    mergedCount: 1
-                                };
-                            } else {
-                                // If the interval is small enough that the new task's +/- 3 days block 
-                                // overlaps or touches the current block (tStart <= currentBlock.endIdx + 1), merge them.
-                                if (tStart <= currentBlock.endIdx + 1) {
-                                    currentBlock.endIdx = Math.max(currentBlock.endIdx, tEnd);
-                                    currentBlock.mergedCount++;
-                                } else {
-                                    // Interval is large (> 6 days), break the block and start a new one
-                                    mergedBlocks.push(currentBlock);
-                                    currentBlock = {
-                                        data: t,
-                                        startIdx: tStart,
-                                        endIdx: tEnd,
-                                        isContinuousGroup: true,
-                                        mergedCount: 1
-                                    };
-                                }
-                            }
-                        });
-                        if (currentBlock) {
-                            mergedBlocks.push(currentBlock);
-                        }
-                    });
-
-                    // Re-sort overall merged blocks
-                    mergedBlocks.sort((a, b) => a.startIdx - b.startIdx);
-
-                    mergedBlocks.forEach(block => {
-                        // Calculate non-overlapping level
-                        let level = 0;
-                        while (levels[level] !== undefined && levels[level] > block.startIdx) {
-                            level++;
-                        }
-                        levels[level] = block.endIdx + 0.5; // slight push gap
-
-                        layout.push({
-                            data: block.data,
-                            // Label is 250px. Columns are 60px.
-                            left: 250 + (block.startIdx * 60),
-                            width: (block.endIdx - block.startIdx + 1) * 60,
-                            top: 12 + (level * 40), // 12px padding, 40px row height
-                            isContinuous: block.isContinuousGroup,
-                            mergedCount: block.mergedCount
-                        });
-                    });
-
-                    const height = Math.max((levels.length * 40) + 24, 70);
-                    return { layout, height };
-                };
-
-                // Methods
-                const toggleTheme = () => {
-                    isDark.value = !isDark.value;
-                };
-
-                const loadData = () => {
-                    loading.value = true;
-                    error.value = '';
-
-                    fetch('/api/schedule')
-                        .then(res => res.json())
-                        .then(data => {
-                            loading.value = false;
-                            if (data.error) {
-                                error.value = data.error;
-                            } else {
-                                scheduleData.value = data.schedules || [];
-                                fieldsData.value = data.fields || {};
-                            }
-                        })
-                        .catch(err => {
-                            loading.value = false;
-                            error.value = "通信エラー: " + err.message;
-                        });
-                };
-
-                // Map View Logic
-                const loadMapData = () => {
-                    fetch('/api/map')
-                        .then(res => res.json())
-                        .then(data => {
-                            mapData.value = data.polygons || [];
-                            if (currentView.value === 'map') {
-                                renderMainMap();
-                            }
-                        })
-                        .catch(err => {
-                            console.error("Map data fetch error", err);
-                        });
-                };
-
-                const renderMainMap = () => {
-                    if (mainLeafletMap) {
-                        mainLeafletMap.remove();
-                        mainLeafletMap = null;
-                    }
-                    mainLeafletMap = L.map('main-map').setView([36.0, 138.0], 14);
-
-                    // Use Google Maps Satellite view
-                    L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
-                        attribution: 'Map data &copy; <a href="https://www.google.com/maps">Google</a>',
-                        maxZoom: 22
-                    }).addTo(mainLeafletMap);
-
-                    const folderColors = {};
-                    const colors = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
-                    let cIdx = 0;
-                    const bounds = L.latLngBounds();
-
-                    // LAYER GROUPS DECLARATION
-                    const heatmapLayerGroup = L.layerGroup();
-                    const ridgesLayerGroup = L.layerGroup();
-
-                    // NEW GROUPS FOR ZOOM RESPONSIVENESS
-                    const detailLabelsGroup = L.layerGroup().addTo(mainLeafletMap);
-                    const groupedLabelsGroup = L.layerGroup();
-                    const nonCultivatedGroup = L.layerGroup().addTo(mainLeafletMap);
-                    const cultivatedGroup = L.layerGroup().addTo(mainLeafletMap);
-
-                    // --- ヒートマップ用のデータ保持配列 ---
-                    const heatmapFields = [];
-
-                    // Legend Control
-                    const heatmapLegendControl = L.control({ position: 'bottomright' });
-                    heatmapLegendControl.onAdd = function (map) {
-                        const div = L.DomUtil.create('div', 'info legend');
-                        div.id = 'heatmap-legend';
-                        div.style.background = 'rgba(255, 255, 255, 0.9)';
-                        div.style.padding = '8px 12px';
-                        div.style.borderRadius = '5px';
-                        div.style.boxShadow = '0 0 15px rgba(0,0,0,0.2)';
-                        div.style.display = 'none';
-                        div.style.minWidth = '160px';
-                        return div;
-                    };
-                    heatmapLegendControl.addTo(mainLeafletMap);
-
-                    // ポリゴン名をパースしてリージョン名（例：「東窪①-A」→「東窪」）を取得する関数
-                    const getRegionName = (name) => {
-                        if (!name) return 'unknown';
-                        // ①, ②, などの丸数字やハイフンの前までをリージョンとする
-                        const match = name.match(/^([^①②③④⑤⑥⑦⑧⑨⑩\-]+)/);
-                        return match ? match[1].trim() : name.trim();
-                    };
-
-                    mapData.value.forEach(poly => {
-                        // Assign distinct color per folder
-                        if (!folderColors[poly.folder]) {
-                            folderColors[poly.folder] = colors[cIdx % colors.length];
-                            cIdx++;
-                        }
-                        const pColor = folderColors[poly.folder];
-
-                        const coordPairs = poly.rawCoords.split(/\s+/).filter(p => p.includes(','));
-                        if (coordPairs.length < 3) return;
-
-                        const latlngs = coordPairs.map(cp => {
-                            const [lngStr, latStr] = cp.split(',');
-                            return [parseFloat(latStr), parseFloat(lngStr)];
-                        });
-
-                        // Main Polygon
-                        const polygon = L.polygon(latlngs, {
-                            color: pColor,
-                            weight: 2,
-                            opacity: 0.9,
-                            fillColor: pColor,
-                            fillOpacity: 0.15
-                        });
-
-                        // ホバーエフェクトの追加
-                        polygon.on('mouseover', function (e) {
-                            this.setStyle({ fillOpacity: 0.4, weight: 3 });
-                        });
-                        polygon.on('mouseout', function (e) {
-                            this.setStyle({ fillOpacity: 0.15, weight: 2 });
-                        });
-
-                        // レイヤー振り分け
-                        if (poly.folder === '耕作地') {
-                            polygon.addTo(cultivatedGroup);
-                        } else {
-                            polygon.addTo(nonCultivatedGroup);
-                        }
-
-                        bounds.extend(polygon.getBounds());
-                        const center = polygon.getBounds().getCenter();
-
-                        let infoHtml = `<div style="font-family: 'Noto Sans JP', sans-serif;">`;
-                        infoHtml += `<h4 style="margin: 0 0 8px 0; color: #1e3a8a;">${poly.name}</h4>`;
-                        infoHtml += `<div style="font-size: 13px; line-height: 1.4;">`;
-                        infoHtml += `<b>レイヤー:</b> ${poly.folder}<br/>`;
-                        if (poly.repElev !== null) infoHtml += `<b>代表標高:</b> ${poly.repElev}m<br/>`;
-                        if (poly.area !== null) infoHtml += `<b>面積:</b> ${poly.area.toFixed(1)}㎡<br/>`;
-                        if (poly.perimeter !== null) infoHtml += `<b>外周:</b> ${poly.perimeter.toFixed(1)}m<br/>`;
-
-                        if (poly.folder === '耕作地') {
-                            infoHtml += `<div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #ccc;">`;
-                            infoHtml += `<b>定植本数:</b> <span style="font-weight:bold; font-size: 15px; color:#10b981;">${poly.totalPlantCount || 0}</span> 本<br/>`;
-                            infoHtml += `<div style="color: #666; font-size: 11px; margin: 4px 0;">ー以下は内訳ー</div>`;
-                            infoHtml += `<b>畝数:</b> ${poly.totalRidgeCount || 0} 本<br/>`;
-                            infoHtml += `<b>畝幅:</b> ${poly.ridgeWidth || 0} cm<br/>`;
-                            infoHtml += `<b>畝間幅:</b> ${poly.ridgeGap || 0} cm<br/>`;
-                            infoHtml += `<b>条数:</b> ${poly.rowCount || 1} 条<br/>`;
-                            infoHtml += `<b>株間:</b> ${poly.plantSpacing || 0} cm<br/>`;
-                            infoHtml += `</div>`;
-                        }
-
-                        infoHtml += `</div></div>`;
-                        polygon.bindPopup(infoHtml);
-
-                        // Text Label on Polygon
-                        let areaText = poly.area ? Math.round(poly.area) + '㎡' : '';
-                        let textLine2 = areaText;
-                        if (poly.folder === '耕作地' && poly.totalPlantCount) {
-                            if (areaText) {
-                                textLine2 += ` ｜ ${poly.totalPlantCount}本`;
-                            } else {
-                                textLine2 = `${poly.totalPlantCount}本`;
-                            }
-                        }
-
-                        const detailLabel = L.marker(center, {
-                            icon: L.divIcon({
-                                className: 'map-field-label',
-                                html: `<div style="color:#ffffff; text-shadow:1px 1px 3px rgba(0,0,0,0.9), -1px -1px 3px rgba(0,0,0,0.9); font-weight:800; font-size:14px; text-align:center;">
-                                       ${poly.name}<br/>
-                                       <span style="font-size:10px;">${textLine2}</span>
-                                       </div>`,
-                                iconSize: [140, 40],
-                                iconAnchor: [70, 20]
-                            }),
-                            interactive: false
-                        });
-
-                        if (poly.folder === '耕作地') {
-                            detailLabel.addTo(detailLabelsGroup);
-                        } else {
-                            detailLabel.addTo(nonCultivatedGroup);
-                        }
-
-                        // Ridges
-                        poly.ridges.forEach((r, idx) => {
-                            // 1. 透明で太いヒットボックス用ライン（クリックの当たり判定を拡張）
-                            const hitBoxLine = L.polyline([
-                                [r.startLat, r.startLon],
-                                [r.endLat, r.endLon]
-                            ], {
-                                color: 'transparent',
-                                weight: 24, // 24pxの太さでクリックしやすくする
-                                opacity: 0,
-                                lineCap: 'round',
-                                interactive: true // クリック判定を有効化
-                            });
-
-                            // 2. 視覚用の畝ライン（zoomで太さが変わる）
-                            const rLine = L.polyline([
-                                [r.startLat, r.startLon],
-                                [r.endLat, r.endLon]
-                            ], {
-                                color: '#fb923c', // 畝の色
-                                weight: 2, // 初期値は控えめに、zoomendで動的調整
-                                opacity: 0.8,
-                                lineCap: 'round',
-                                lineJoin: 'round',
-                                interactive: false // ポップアップはhitBoxLineに任せるため不要
-                            });
-
-                            // レイヤーグループにまとめてridgesLayerGroupに追加
-                            const ridgeFeatureGroup = L.featureGroup([hitBoxLine, rLine]).addTo(ridgesLayerGroup);
-
-                            // 表示用のラインオブジェクトをセットしておく(zoomend時の太さ調整用)
-                            ridgeFeatureGroup._visualLine = rLine;
-
-                            // ホバーエフェクト（透明ヒットボックスに乗ったときに視覚線を太くくっきりさせる）
-                            hitBoxLine.on('mouseover', function () {
-                                rLine.setStyle({ weight: 6, opacity: 1 });
-                            });
-                            hitBoxLine.on('mouseout', function () {
-                                const zoom = mainLeafletMap.getZoom();
-                                const w = zoom <= 18 ? 0 : 2;
-                                const o = zoom <= 18 ? 0 : 0.9;
-                                rLine.setStyle({ weight: w, opacity: o });
-                            });
-
-                            let diffText = "取得不可";
-                            if (r.sAlt && r.eAlt) {
-                                diffText = Math.abs(r.sAlt - r.eAlt).toFixed(1) + "m";
-                            }
-
-                            // 吹き出しを設定
-                            const popupHtml = `
-                                <div style="font-family: 'Noto Sans JP', sans-serif; font-size:14px; min-width:160px; line-height:1.5;">
-                                    <h4 style="margin: 0 0 8px 0; color: #fb923c; border-bottom:1px solid #ddd; padding-bottom:4px;">畝番号: ${idx + 1}</h4>
-                                    <b>長さ:</b> ${r.length.toFixed(1)} m<br/>
-                                    <b>高低差:</b> <span style="color:#555;">${diffText}</span><br/>
-                                    <b>定植可能本数:</b> <span style="font-weight:bold; color:#10b981;">${r.plants}</span> 本
-                                </div>
-                            `;
-                            // 透明なヒットボックス側にポップアップをバインドする
-                            hitBoxLine.bindPopup(popupHtml);
-
-                        }); // End of poly.ridges.forEach
-
-                        // ---- 畝の連続ヒートマップ（ポリゴンメッシュ）生成 ----
-                        const fieldHeatmapData = {
-                            bounds: polygon.getBounds(),
-                            layers: [],
-                            minAlt: Infinity,
-                            maxAlt: -Infinity
-                        };
-
-                        if (poly.ridges && poly.ridges.length > 0) {
-                            // 各畝上の補間された座標点リストを生成
-                            const ridgePointsArrays = [];
-                            poly.ridges.forEach(r => {
-                                if (!r.sAlt || r.sAlt === 0) {
-                                    ridgePointsArrays.push(null);
-                                    return;
-                                }
-                                const basePts = [
-                                    { lat: r.startLat, lon: r.startLon, alt: r.sAlt },
-                                    { lat: r.startLat * 0.75 + r.endLat * 0.25, lon: r.startLon * 0.75 + r.endLon * 0.25, alt: r.q1Alt },
-                                    { lat: (r.startLat + r.endLat) / 2, lon: (r.startLon + r.endLon) / 2, alt: r.mAlt },
-                                    { lat: r.startLat * 0.25 + r.endLat * 0.75, lon: r.startLon * 0.25 + r.endLon * 0.75, alt: r.q3Alt },
-                                    { lat: r.endLat, lon: r.endLon, alt: r.eAlt }
-                                ];
-
-                                const detailedPts = [];
-                                const segmentsPerInterval = 2; // 区間ごとの分割数 (計8セグメント=9点)
-                                for (let i = 0; i < basePts.length - 1; i++) {
-                                    let pA = basePts[i];
-                                    let pB = basePts[i + 1];
-                                    for (let k = 0; k < segmentsPerInterval; k++) {
-                                        let t = k / segmentsPerInterval;
-                                        detailedPts.push({
-                                            lat: pA.lat * (1 - t) + pB.lat * t,
-                                            lon: pA.lon * (1 - t) + pB.lon * t,
-                                            alt: pA.alt * (1 - t) + pB.alt * t
-                                        });
-                                    }
-                                }
-                                detailedPts.push(basePts[basePts.length - 1]);
-                                ridgePointsArrays.push(detailedPts);
-                            });
-
-                            // 隣り合う畝の間にポリゴン（四角形）を描画して隙間を埋める
-                            for (let i = 0; i < ridgePointsArrays.length - 1; i++) {
-                                const ptsA = ridgePointsArrays[i];
-                                const ptsB = ridgePointsArrays[i + 1];
-                                if (!ptsA || !ptsB) continue;
-
-                                for (let j = 0; j < ptsA.length - 1; j++) {
-                                    const v1 = ptsA[j];
-                                    const v2 = ptsB[j];
-                                    const v3 = ptsB[j + 1];
-                                    const v4 = ptsA[j + 1];
-
-                                    const avgAlt = (v1.alt + v2.alt + v3.alt + v4.alt) / 4;
-                                    fieldHeatmapData.minAlt = Math.min(fieldHeatmapData.minAlt, avgAlt);
-                                    fieldHeatmapData.maxAlt = Math.max(fieldHeatmapData.maxAlt, avgAlt);
-
-                                    const heatPoly = L.polygon([
-                                        [v1.lat, v1.lon],
-                                        [v2.lat, v2.lon],
-                                        [v3.lat, v3.lon],
-                                        [v4.lat, v4.lon]
-                                    ], {
-                                        weight: 1, // 1px border with same color eliminates visual gaps
-                                        fillOpacity: 0.65,
-                                        smoothFactor: 0,
-                                        color: 'transparent', // 表示更新時に動的にセットする
-                                        fillColor: 'transparent'
-                                    }).addTo(heatmapLayerGroup);
-
-                                    fieldHeatmapData.layers.push({ polygon: heatPoly, alt: avgAlt });
-                                }
-                            }
-                            if (fieldHeatmapData.layers.length > 0) {
-                                heatmapFields.push(fieldHeatmapData);
-                            }
-                        }
-                    });
-
-                    // --- 耕作地のグループラベル生成 ---
-                    const regionData = {};
-                    mapData.value.forEach(poly => {
-                        if (poly.folder === '耕作地') {
-                            const region = getRegionName(poly.name);
-                            if (!regionData[region]) {
-                                regionData[region] = { area: 0, positions: [], name: region, elevSum: 0, elevCount: 0 };
-                            }
-                            if (poly.area) regionData[region].area += poly.area;
-                            if (poly.repElev) {
-                                regionData[region].elevSum += poly.repElev;
-                                regionData[region].elevCount += 1;
-                            }
-
-                            const coordPairs = poly.rawCoords.split(/\s+/).filter(p => p.includes(','));
-                            if (coordPairs.length >= 3) {
-                                const latlngs = coordPairs.map(cp => {
-                                    const [lngStr, latStr] = cp.split(',');
-                                    return [parseFloat(latStr), parseFloat(lngStr)];
-                                });
-                                regionData[region].positions.push(L.polygon(latlngs).getBounds().getCenter());
-                            }
-                        }
-                    });
-
-                    Object.values(regionData).forEach(reg => {
-                        if (reg.positions.length > 0) {
-                            const avgLat = reg.positions.reduce((sum, p) => sum + p.lat, 0) / reg.positions.length;
-                            const avgLng = reg.positions.reduce((sum, p) => sum + p.lng, 0) / reg.positions.length;
-                            const avgElevHtml = reg.elevCount > 0 ? `<br/><span style="font-size:12px;">代表標高: ${(reg.elevSum / reg.elevCount).toFixed(1)}m</span>` : '';
-
-                            L.marker([avgLat, avgLng], {
-                                icon: L.divIcon({
-                                    className: 'map-field-label-grouped',
-                                    html: `<div style="color:#ffffff; text-shadow:1px 1px 3px rgba(0,0,0,0.9), -1px -1px 3px rgba(0,0,0,0.9); font-weight:800; font-size:18px; text-align:center; background: rgba(0,0,0,0.5); padding:6px 10px; border-radius:8px; border:2px solid #fff;">
-                                           ${reg.name}<br/>
-                                           <span style="font-size:13px;">${Math.round(reg.area).toLocaleString()}㎡</span>
-                                           ${avgElevHtml}
-                                           </div>`,
-                                    iconSize: [120, 70],
-                                    iconAnchor: [60, 35]
-                                }),
-                                interactive: false
-                            }).addTo(groupedLabelsGroup);
-                        }
-                    });
-
-                    // Add layers to control (Overlays)
-                    const overlays = {
-                        "🟠 畝ライン": ridgesLayerGroup,
-                        "🟢 高低差": heatmapLayerGroup
-                    };
-                    L.control.layers(null, overlays, { collapsed: false, position: 'topright' }).addTo(mainLeafletMap);
-
-                    // 初期状態ではヒートマップも畝も重いため任意でON（要望によりデフォルトOFF）
-                    // ridgesLayerGroup.addTo(mainLeafletMap);
-
-                    // --- ズームレベルに応じたレイヤーとスタイルの調整 ---
-                    const updateRidgeStyles = () => {
-                        if (!mainLeafletMap) return;
-                        const zoom = mainLeafletMap.getZoom();
-                        let weight = 6;
-                        let opacity = 0.9;
-
-                        // 畝の表示/非表示制御
-                        if (zoom <= 18) {
-                            weight = 0; // ほぼ見えないレベル
-                            opacity = 0;
-                        } else {
-                            weight = 2; // 最大ズーム時(外径と同じ太さ)
-                            opacity = 0.9;
-                        }
-
-                        ridgesLayerGroup.eachLayer(layerGroup => {
-                            if (layerGroup._visualLine) {
-                                layerGroup._visualLine.setStyle({ weight: weight, opacity: opacity });
-                            }
-                        });
-
-                        // グループラベルと個別表示の切り替え (例: ズーム17以下でグループ化)
-                        if (zoom <= 17) {
-                            if (mainLeafletMap.hasLayer(detailLabelsGroup)) mainLeafletMap.removeLayer(detailLabelsGroup);
-                            if (mainLeafletMap.hasLayer(nonCultivatedGroup)) mainLeafletMap.removeLayer(nonCultivatedGroup);
-                            if (!mainLeafletMap.hasLayer(groupedLabelsGroup)) mainLeafletMap.addLayer(groupedLabelsGroup);
-                        } else {
-                            if (!mainLeafletMap.hasLayer(detailLabelsGroup)) mainLeafletMap.addLayer(detailLabelsGroup);
-                            if (!mainLeafletMap.hasLayer(nonCultivatedGroup)) mainLeafletMap.addLayer(nonCultivatedGroup);
-                            if (mainLeafletMap.hasLayer(groupedLabelsGroup)) mainLeafletMap.removeLayer(groupedLabelsGroup);
-                        }
-                    };
-
-                    // --- ヒートマップの動的更新（表示エリアに合わせたダイナミックレンジ） ---
-                    const updateHeatmapStyles = () => {
-                        const legendDiv = document.getElementById('heatmap-legend');
-                        if (!mainLeafletMap.hasLayer(heatmapLayerGroup)) {
-                            if (legendDiv) legendDiv.style.display = 'none';
-                            return;
-                        }
-
-                        const mapBounds = mainLeafletMap.getBounds();
-                        let visibleMin = Infinity;
-                        let visibleMax = -Infinity;
-                        const visibleFields = [];
-
-                        for (const field of heatmapFields) {
-                            if (mapBounds.intersects(field.bounds)) {
-                                visibleFields.push(field);
-                                visibleMin = Math.min(visibleMin, field.minAlt);
-                                visibleMax = Math.max(visibleMax, field.maxAlt);
-                            }
-                        }
-
-                        if (visibleMin !== Infinity && visibleMax !== -Infinity) {
-                            const range = Math.max(1, visibleMax - visibleMin); // 平坦な場合ゼロ割防止
-
-                            for (const field of visibleFields) {
-                                for (const layerData of field.layers) {
-                                    let t = (layerData.alt - visibleMin) / range;
-                                    t = Math.max(0, Math.min(1, t));
-                                    let h = Math.round(240 * (1 - t)); // 青(240) -> 赤(0)
-                                    const color = `hsl(${h}, 100%, 50%)`;
-                                    layerData.polygon.setStyle({ color: color, fillColor: color });
-                                }
-                            }
-
-                            if (legendDiv) {
-                                legendDiv.style.display = 'block';
-                                legendDiv.innerHTML = `
-                                    <div style="font-size: 13px; font-weight: bold; margin-bottom: 8px; border-bottom:1px solid #ddd; padding-bottom:4px;">高低差 (表示エリア内基準)</div>
-                                    <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px;">
-                                        <span style="color: #1e3a8a; font-weight: bold;">${visibleMin.toFixed(1)}m (低)</span>
-                                        <span style="color: #ef4444; font-weight: bold;">${visibleMax.toFixed(1)}m (高)</span>
-                                    </div>
-                                    <div style="width: 100%; height: 12px; background: linear-gradient(to right, hsl(240,100%,50%), hsl(180,100%,50%), hsl(120,100%,50%), hsl(60,100%,50%), hsl(0,100%,50%)); border-radius: 4px; margin-top: 6px;"></div>
-                                `;
-                            }
-                        } else {
-                            if (legendDiv) legendDiv.style.display = 'none';
-                        }
-                    };
-
-                    mainLeafletMap.on('zoomend', () => {
-                        updateRidgeStyles();
-                        updateHeatmapStyles();
-                    });
-                    mainLeafletMap.on('moveend', updateHeatmapStyles);
-                    mainLeafletMap.on('overlayadd', (e) => {
-                        if (e.layer === heatmapLayerGroup) updateHeatmapStyles();
-                    });
-                    mainLeafletMap.on('overlayremove', (e) => {
-                        if (e.layer === heatmapLayerGroup) {
-                            const legendDiv = document.getElementById('heatmap-legend');
-                            if (legendDiv) legendDiv.style.display = 'none';
-                        }
-                    });
-
-                    if (mapData.value.length > 0 && bounds.isValid()) {
-                        mainLeafletMap.fitBounds(bounds);
-                        // 初回描画時にも適用
-                        setTimeout(() => {
-                            mainLeafletMap.fire('zoomend');
-                            updateHeatmapStyles();
-                        }, 50);
-                    }
-                };
-
-                const openFieldModal = (fieldName) => {
-                    if (!fieldName || fieldName === '未定') return;
-                    selectedFieldName.value = fieldName;
-                    fieldDialog.value = true;
-
-                    if (selectedFieldInfo.value && selectedFieldInfo.value.polygonCoords) {
-                        Vue.nextTick(() => {
-                            setTimeout(() => {
-                                if (modalLeafletMap) {
-                                    modalLeafletMap.remove();
-                                    modalLeafletMap = null;
-                                }
-
-                                modalLeafletMap = L.map('polygon-map', {
-                                    attributionControl: true
-                                });
-
-                                L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
-                                    attribution: 'Map data &copy; <a href="https://www.google.com/maps">Google</a>',
-                                    maxZoom: 22
-                                }).addTo(modalLeafletMap);
-
-                                const modalRidgesLayerGroup = L.layerGroup();
-                                const modalHeatmapLayerGroup = L.layerGroup();
-                                const bounds = L.latLngBounds();
-
-                                // 1. 農地ポリゴン描画
-                                const coords = selectedFieldInfo.value.polygonCoords.coordinates[0];
-                                const latlngs = coords.map(c => [c[1], c[0]]);
-                                L.polygon(latlngs, {
-                                    color: '#ef4444',
-                                    weight: 2,
-                                    opacity: 0.8,
-                                    fillOpacity: 0.1
-                                }).addTo(modalLeafletMap);
-                                latlngs.forEach(ll => bounds.extend(ll));
-
-                                // 2. 畝ライン（ridges）の描画
-                                const rData = selectedFieldInfo.value.ridges;
-                                if (rData && rData.length > 0) {
-                                    rData.forEach(r => {
-                                        if (typeof r.startLat === 'number' && typeof r.startLon === 'number' && typeof r.endLat === 'number' && typeof r.endLon === 'number') {
-                                            const pStart = [r.startLat, r.startLon];
-                                            const pEnd = [r.endLat, r.endLon];
-                                            const rLine = L.polyline([pStart, pEnd], {
-                                                color: '#f97316', // orange-500
-                                                weight: 2,
-                                                opacity: 0.9,
-                                                dashArray: '4,4'
-                                            });
-                                            modalRidgesLayerGroup.addLayer(rLine);
-                                        }
-                                    });
-                                }
-
-                                // 3. 高低差ヒートマップ（標高メッシュポリゴン）の描画
-                                const modalHeatmapLayers = [];
-                                let modalMinAlt = Infinity;
-                                let modalMaxAlt = -Infinity;
-
-                                if (rData && rData.length > 0) {
-                                    const ridgePointsArrays = [];
-                                    rData.forEach(r => {
-                                        if (!r.sAlt || r.sAlt === 0) {
-                                            ridgePointsArrays.push(null);
-                                            return;
-                                        }
-                                        const basePts = [
-                                            { lat: r.startLat, lon: r.startLon, alt: r.sAlt },
-                                            { lat: r.startLat * 0.75 + r.endLat * 0.25, lon: r.startLon * 0.75 + r.endLon * 0.25, alt: r.q1Alt },
-                                            { lat: (r.startLat + r.endLat) / 2, lon: (r.startLon + r.endLon) / 2, alt: r.mAlt },
-                                            { lat: r.startLat * 0.25 + r.endLat * 0.75, lon: r.startLon * 0.25 + r.endLon * 0.75, alt: r.q3Alt },
-                                            { lat: r.endLat, lon: r.endLon, alt: r.eAlt }
-                                        ];
-
-                                        const detailedPts = [];
-                                        const segmentsPerInterval = 2; // 区間ごとの分割数
-                                        for (let i = 0; i < basePts.length - 1; i++) {
-                                            let pA = basePts[i];
-                                            let pB = basePts[i + 1];
-                                            for (let k = 0; k < segmentsPerInterval; k++) {
-                                                let t = k / segmentsPerInterval;
-                                                detailedPts.push({
-                                                    lat: pA.lat * (1 - t) + pB.lat * t,
-                                                    lon: pA.lon * (1 - t) + pB.lon * t,
-                                                    alt: pA.alt * (1 - t) + pB.alt * t
-                                                });
-                                            }
-                                        }
-                                        detailedPts.push(basePts[basePts.length - 1]);
-                                        ridgePointsArrays.push(detailedPts);
-                                    });
-
-                                    for (let i = 0; i < ridgePointsArrays.length - 1; i++) {
-                                        const ptsA = ridgePointsArrays[i];
-                                        const ptsB = ridgePointsArrays[i + 1];
-                                        if (!ptsA || !ptsB) continue;
-
-                                        for (let j = 0; j < ptsA.length - 1; j++) {
-                                            const v1 = ptsA[j];
-                                            const v2 = ptsB[j];
-                                            const v3 = ptsB[j + 1];
-                                            const v4 = ptsA[j + 1];
-
-                                            const avgAlt = (v1.alt + v2.alt + v3.alt + v4.alt) / 4;
-                                            modalMinAlt = Math.min(modalMinAlt, avgAlt);
-                                            modalMaxAlt = Math.max(modalMaxAlt, avgAlt);
-
-                                            const heatPoly = L.polygon([
-                                                [v1.lat, v1.lon],
-                                                [v2.lat, v2.lon],
-                                                [v3.lat, v3.lon],
-                                                [v4.lat, v4.lon]
-                                            ], {
-                                                weight: 1,
-                                                fillOpacity: 0.65,
-                                                smoothFactor: 0,
-                                                color: 'transparent',
-                                                fillColor: 'transparent'
-                                            }).addTo(modalHeatmapLayerGroup);
-
-                                            modalHeatmapLayers.push({ polygon: heatPoly, alt: avgAlt });
-                                        }
-                                    }
-                                }
-
-                                const updateModalHeatmapColors = () => {
-                                    const legendDiv = document.getElementById('modal-heatmap-legend');
-                                    if (!modalLeafletMap.hasLayer(modalHeatmapLayerGroup)) {
-                                        if (legendDiv) legendDiv.style.display = 'none';
-                                        return;
-                                    }
-
-                                    if (modalMinAlt !== Infinity && modalMaxAlt !== -Infinity) {
-                                        const range = Math.max(1, Math.abs(modalMaxAlt - modalMinAlt));
-                                        for (const layerData of modalHeatmapLayers) {
-                                            let t = (layerData.alt - modalMinAlt) / range;
-                                            t = Math.max(0, Math.min(1, t));
-                                            let h = Math.round(240 * (1 - t)); // 青(240) -> 赤(0)
-                                            const color = `hsl(${h}, 100%, 50%)`;
-                                            layerData.polygon.setStyle({ color: color, fillColor: color });
-                                        }
-
-                                        if (legendDiv) {
-                                            legendDiv.style.display = 'block';
-                                            document.getElementById('modal-legend-max').textContent = modalMaxAlt.toFixed(1) + 'm (高)';
-                                            document.getElementById('modal-legend-min').textContent = modalMinAlt.toFixed(1) + 'm (低)';
-                                        }
-                                    }
-                                };
-
-                                // レイヤーコントロールを追加
-                                const overlays = {
-                                    "🟠 畝ライン": modalRidgesLayerGroup,
-                                    "🟢 高低差": modalHeatmapLayerGroup
-                                };
-                                L.control.layers(null, overlays, { collapsed: false, position: 'topright' }).addTo(modalLeafletMap);
-
-                                modalLeafletMap.on('overlayadd', (e) => {
-                                    if (e.layer === modalHeatmapLayerGroup) {
-                                        updateModalHeatmapColors();
-                                    }
-                                });
-                                modalLeafletMap.on('overlayremove', (e) => {
-                                    if (e.layer === modalHeatmapLayerGroup) {
-                                        const legendDiv = document.getElementById('modal-heatmap-legend');
-                                        if (legendDiv) legendDiv.style.display = 'none';
-                                    }
-                                });
-
-                                // Initial styling
-                                updateModalHeatmapColors();
-
-                                if (bounds.isValid()) {
-                                    modalLeafletMap.fitBounds(bounds, { padding: [20, 20] });
-                                    setTimeout(() => modalLeafletMap.invalidateSize(), 50);
-                                }
-                            }, 300);
-                        });
-                    }
-                };
-
-                Vue.watch(currentView, (newVal) => {
-                    if (newVal === 'map') {
-                        Vue.nextTick(() => {
-                            if (mainLeafletMap) {
-                                mainLeafletMap.invalidateSize();
-                            } else {
-                                renderMainMap();
-                            }
-                        });
-                    }
-                });
-
-                const openReportDialog = (task) => {
-                    selectedTask.value = task;
-                    reportForm.value = {
-                        actualHours: task.actualHours !== null ? task.actualHours : (task.estimatedHours !== undefined ? task.estimatedHours : (task.baseWorkHours || 0)),
-                        actualMaterialQty: task.actualMaterialQty !== null ? task.actualMaterialQty : (task.materialQty || 0),
-                        workerName: task.workerName ? task.workerName : (localStorage.getItem('agri_worker_name') || ''),
-                        memo: task.memo || ''
-                    };
-                    reportDialog.value = true;
-                };
-
-                const showTaskDetails = (task, plan) => {
-                    // For Gantt view clicking
-                    const mergedTask = { ...task, planId: plan.planId, cropName: plan.cropName, field: plan.field };
-                    openReportDialog(mergedTask);
-                };
-
-                const submitReport = () => {
-                    if (!selectedTask.value) return;
-
-                    saving.value = true;
-
-                    // Save worker name to local storage for convenience
-                    if (reportForm.value.workerName) {
-                        localStorage.setItem('agri_worker_name', reportForm.value.workerName);
-                    }
-
-                    const payload = {
-                        planId: selectedTask.value.planId,
-                        taskId: selectedTask.value.taskId,
-                        cropName: selectedTask.value.cropName,
-                        majorCat: selectedTask.value.majorCat,
-                        midCat: selectedTask.value.midCat,
-                        minorCat: selectedTask.value.minorCat,
-                        actualHours: reportForm.value.actualHours,
-                        actualMaterialQty: reportForm.value.actualMaterialQty,
-                        workerName: reportForm.value.workerName,
-                        memo: reportForm.value.memo
-                    };
-
-                    fetch('/api/tasks/report', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    })
-                        .then(res => res.json())
-                        .then(result => {
-                            saving.value = false;
-                            if (result.success) {
-                                reportDialog.value = false;
-                                snackbar.value = { show: true, color: 'success', message: result.message || '保存しました' };
-                                // Local status update
-                                selectedTask.value.status = '完了';
-                                selectedTask.value.actualHours = reportForm.value.actualHours;
-                                selectedTask.value.actualMaterialQty = reportForm.value.actualMaterialQty;
-                                selectedTask.value.workerName = reportForm.value.workerName;
-                                selectedTask.value.memo = reportForm.value.memo;
-                            } else {
-                                snackbar.value = { show: true, color: 'error', message: result.error || '保存に失敗しました' };
-                            }
-                        })
-                        .catch(err => {
-                            saving.value = false;
-                            snackbar.value = { show: true, color: 'error', message: '通信エラー: ' + err.message };
-                        });
-                };
-
-                // Initialize
-                onMounted(() => {
-                    loadData();
-                    loadMapData();
-                });
-
+    const { createApp, ref, computed, onMounted, watch } = Vue;
+    createApp({
+        setup() {
+            // ── State ──
+            const activeTab = ref('tasks');
+            const loading = ref(false);
+            const saving = ref(false);
+            const uploading = ref(false);
+            const logs = ref([]);
+            const seasonPlans = ref([]);
+            const processMaster = ref([]);
+            const varietiesMaster = ref([]);
+            const workMaster = ref([]);
+            const fieldsData = ref([]);
+            const calendarEl = ref(null);
+            const calendarDetail = ref({ show: false, title: '', date: '', color: '', workDetails: '', details: [] });
+            const mapModal = ref({ show: false, fields: [] });
+            const logDialog = ref(false);
+            const deleteDialog = ref(false);
+            const deleteTarget = ref(null);
+            const imagePreviewDialog = ref(false);
+            const previewImage = ref('');
+            const formImageUrls = ref([]);
+            const snackbar = ref({ show: false, color: '', text: '' });
+            const taskStatusMap = ref({});
+            const mobileTaskLimit = ref(30);
+            const drawer = ref(false);
+
+            // ── Constants (from shared modules) ──
+            const workerSelectItems = ['中條 翔太', '丸山野 泰世', '大川 健幸', '松木 靖', 'その他'];
+            const timeSlots = AgriUtils.generateTimeSlots();
+            const breakSlots = AgriUtils.BREAK_SLOTS;
+            const todayStr = AgriUtils.todayStr;
+
+            // ── Form ──
+            const logForm = ref(makeEmptyForm());
+            function makeEmptyForm() {
                 return {
-                    drawer, currentView, isDark, toggleTheme,
-                    loading, error, loadData,
-                    todayStr, todayDateStr, todayTasks, scheduleData,
-                    timelineDates, getDayClass, getTaskColorClass, getTaskLayout,
-                    reportDialog, saving, selectedTask, reportForm, openReportDialog, showTaskDetails, submitReport,
-                    fieldsData, fieldDialog, selectedFieldName, selectedFieldInfo, openFieldModal,
-                    snackbar,
-                    selectedCrops, availableCrops, filteredScheduleData,
-                    getCropColor, formatCropTitle, formatCropSubtitle,
-                    expandedRows, toggleRow, filteredTotals
+                    log_date: todayStr, start_time: '', end_time: '', break_minutes: 0,
+                    worker_name: '', worker_name_other: '',
+                    crop_name: '', variety_name: '', work_description: '',
+                    memo: '', task_ref: '', _taskLabel: ''
                 };
             }
-        });
 
-        app.use(vuetify).mount('#app');
+            // ── Filters (Logs) ──
+            const filterDate = ref(null);
+            const filterWorker = ref(null);
+            const filterCrop = ref(null);
+
+            // ── Filters (Tasks) ──
+            const taskFilterCrop = ref(null);
+            const taskFilterPeriod = ref('all');
+
+            const generatedTasks = computed(() => {
+                return AgriTaskGenerator.generateTasks({
+                    seasonPlans: seasonPlans.value,
+                    processMaster: processMaster.value,
+                    varietiesMaster: varietiesMaster.value,
+                    logs: logs.value,
+                    taskStatusMap: taskStatusMap.value
+                });
+            });
+
+            const taskSubTab = ref('pending');
+
+            const taskHeaders = [
+                { title: '予定日', key: 'scheduled_date', width: '110px' },
+                { title: '作物', key: 'crop_display', width: '140px', sortable: false },
+                { title: '圃場', key: 'field_name', width: '110px' },
+                { title: '作業', key: 'work_name', sortable: false },
+                { title: '', key: 'actions', width: '220px', sortable: false }
+            ];
+
+            const doneTaskHeaders = [
+                { title: '予定日', key: 'scheduled_date', width: '110px' },
+                { title: '作物', key: 'crop_display', width: '140px', sortable: false },
+                { title: '圃場', key: 'field_name', width: '110px' },
+                { title: '作業', key: 'work_name', sortable: false },
+                { title: '', key: 'actions', width: '100px', sortable: false }
+            ];
+
+            const taskCropOptions = computed(() => {
+                return [...new Set(generatedTasks.value.map(t => t.crop_item))].sort();
+            });
+
+            const pendingTasks = computed(() => {
+                let items = generatedTasks.value.filter(t => !t.is_done);
+                if (taskFilterCrop.value) items = items.filter(t => t.crop_item === taskFilterCrop.value);
+                if (taskFilterPeriod.value === 'overdue') {
+                    items = items.filter(t => t.scheduled_date < todayStr);
+                } else if (taskFilterPeriod.value === 'today') {
+                    items = items.filter(t => t.scheduled_date === todayStr);
+                } else if (taskFilterPeriod.value === 'week') {
+                    const weekEnd = new Date();
+                    weekEnd.setDate(weekEnd.getDate() + 7);
+                    const weekStr = weekEnd.toISOString().split('T')[0];
+                    items = items.filter(t => t.scheduled_date >= todayStr && t.scheduled_date <= weekStr);
+                }
+                return items;
+            });
+
+            const doneTasks = computed(() => {
+                let items = generatedTasks.value.filter(t => t.is_done);
+                if (taskFilterCrop.value) items = items.filter(t => t.crop_item === taskFilterCrop.value);
+                return items;
+            });
+
+            function getDateColor(dateStr) {
+                if (dateStr < todayStr) return 'red-lighten-1';
+                if (dateStr === todayStr) return 'amber-darken-1';
+                return 'green-lighten-1';
+            }
+
+            // ══════════════════════════════════════
+            //  WORK LOGS
+            // ══════════════════════════════════════
+
+            const logHeaders = [
+                { title: '日付', key: 'log_date', width: '110px' },
+                { title: '名前', key: 'worker_name', width: '100px' },
+                { title: '作物', key: 'crop_name', width: '100px' },
+                { title: '品種', key: 'variety_name', width: '120px' },
+                { title: '作業', key: 'work_description', width: '180px' },
+                { title: '実働', key: 'work_hours', width: '80px', sortable: false },
+                { title: '写真', key: 'image_urls', width: '120px', sortable: false },
+                { title: 'メモ', key: 'memo' },
+                { title: '', key: 'actions', width: '50px', sortable: false }
+            ];
+
+            const workerFilterOptions = computed(() =>
+                [...new Set(logs.value.map(l => l.worker_name).filter(Boolean))].sort());
+            const cropFilterOptions = computed(() =>
+                [...new Set(logs.value.map(l => l.crop_name).filter(Boolean))].sort());
+            const masterCropOptions = computed(() =>
+                [...new Set(varietiesMaster.value.map(v => v.item_name).filter(Boolean))].sort());
+            const masterVarietyOptions = computed(() => {
+                if (!logForm.value.crop_name) return [];
+                return varietiesMaster.value
+                    .filter(v => v.item_name === logForm.value.crop_name)
+                    .map(v => v.variety_name).filter(Boolean).sort();
+            });
+            const masterWorkOptions = computed(() =>
+                workMaster.value.map(w =>
+                    [w.major_category, w.mid_category, w.minor_category].filter(Boolean).join(' > ')
+                ).filter(Boolean).sort());
+
+            const filteredLogs = computed(() =>
+                logs.value
+                    .filter(l => !filterDate.value || l.log_date === filterDate.value)
+                    .filter(l => !filterWorker.value || l.worker_name === filterWorker.value)
+                    .filter(l => !filterCrop.value || l.crop_name === filterCrop.value)
+                    .sort((a, b) => (b.log_date || '').localeCompare(a.log_date || '') || b.id - a.id));
+
+            // ── Helpers (delegate to shared modules) ──
+            const calcWorkHours = AgriUtils.calcWorkHours;
+            const parseImages = AgriUtils.parseImages;
+
+            // ── Data Loading (via AgriApi) ──
+            async function loadAll() {
+                loading.value = true;
+                try {
+                    const [logsD, spD, pmD, vmD, wmD, fieldsD, tsMap] = await Promise.all([
+                        AgriApi.fetchTable('work_logs'),
+                        AgriApi.fetchTable('season_plans'),
+                        AgriApi.fetchTable('process_master'),
+                        AgriApi.fetchTable('varieties_master'),
+                        AgriApi.fetchTable('work_master'),
+                        AgriApi.fetchTable('fields'),
+                        AgriApi.fetchTaskStatuses()
+                    ]);
+                    logs.value = logsD;
+                    seasonPlans.value = spD;
+                    processMaster.value = pmD;
+                    varietiesMaster.value = vmD;
+                    workMaster.value = wmD;
+                    fieldsData.value = fieldsD;
+                    taskStatusMap.value = tsMap;
+                } catch (e) {
+                    snackbar.value = { show: true, color: 'error', text: '読み込み失敗: ' + e.message };
+                } finally {
+                    loading.value = false;
+                }
+            }
+
+            // ── Map Modal ──
+            const openMapModal = (fieldNames) => {
+                if (!fieldNames || fieldNames.length === 0) return;
+                mapModal.value.fields = fieldNames;
+                mapModal.value.show = true;
+            };
+
+            // ── Calendar (via AgriCalendar) ──
+            let calendarInstance = null;
+            function renderCalendar() {
+                const el = calendarEl.value;
+                if (!el) return;
+                if (calendarInstance) calendarInstance.destroy();
+
+                const calData = AgriCalendar.buildCalendarData({
+                    seasonPlans: seasonPlans.value,
+                    varietiesMaster: varietiesMaster.value,
+                    processMaster: processMaster.value,
+                    fields: fieldsData.value,
+                    taskStatusMap: taskStatusMap.value
+                });
+
+                calendarInstance = AgriCalendar.renderCalendar(el, calData, {
+                    onEventClick(props) {
+                        calendarDetail.value = {
+                            show: true,
+                            title: `${props.itemName}: ${props.workName}`,
+                            date: props.dateStr,
+                            color: props.color,
+                            workDetails: props.workDetails || '',
+                            details: props.details || []
+                        };
+                    }
+                });
+            }
+
+            // ── Task Status Toggle (via AgriApi) ──
+            async function toggleTaskStatus(task) {
+                try {
+                    const data = await AgriApi.toggleTaskStatus(task.task_ref, task.is_done);
+                    if (data.is_done) {
+                        taskStatusMap.value = { ...taskStatusMap.value, [task.task_ref]: true };
+                    } else {
+                        const m = { ...taskStatusMap.value };
+                        delete m[task.task_ref];
+                        taskStatusMap.value = m;
+                    }
+                    snackbar.value = { show: true, color: 'success', text: data.is_done ? '完了にしました' : '未完了に戻しました' };
+                } catch (e) {
+                    snackbar.value = { show: true, color: 'error', text: 'ステータス更新失敗' };
+                }
+            }
+
+            // ── File Upload (via AgriApi) ──
+            async function handleFileSelect(event) {
+                const files = event.target.files;
+                if (!files.length) return;
+                uploading.value = true;
+                for (const file of files) {
+                    try {
+                        const data = await AgriApi.uploadImage(file);
+                        if (data.url) formImageUrls.value.push(data.url);
+                    } catch (e) { /* ignore */ }
+                }
+                uploading.value = false;
+                event.target.value = '';
+            }
+            function removeFormImage(idx) { formImageUrls.value.splice(idx, 1); }
+
+            function openNewLogDialog() {
+                logForm.value = makeEmptyForm();
+                formImageUrls.value = [];
+                logDialog.value = true;
+            }
+
+            function openLogFromTask(task) {
+                logForm.value = {
+                    log_date: task.scheduled_date,
+                    start_time: '', end_time: '', break_minutes: 0,
+                    worker_name: '', worker_name_other: '',
+                    crop_name: task.crop_item,
+                    variety_name: task.crop_variety,
+                    work_description: [task.work_major, task.work_mid, task.work_minor].filter(Boolean).join(' > '),
+                    memo: `圃場: ${task.field_name}`,
+                    task_ref: task.task_ref,
+                    _taskLabel: `${task.work_minor} (${task.field_name})`
+                };
+                formImageUrls.value = [];
+                logDialog.value = true;
+            }
+
+            // ── Calendar-specific helpers ──
+            async function completeCalendarTask(item) {
+                if (!item.taskRef) return;
+                const isDone = !!taskStatusMap.value[item.taskRef];
+                try {
+                    await AgriApi.toggleTaskStatus(item.taskRef, isDone);
+                    if (isDone) {
+                        delete taskStatusMap.value[item.taskRef];
+                    } else {
+                        taskStatusMap.value[item.taskRef] = true;
+                    }
+                    taskStatusMap.value = { ...taskStatusMap.value };
+                    snackbar.value = { show: true, color: 'success', text: isDone ? '未完了に戻しました' : '完了にしました' };
+                } catch (e) {
+                    snackbar.value = { show: true, color: 'error', text: 'ステータス更新失敗' };
+                }
+            }
+
+            function logFromCalendarTask(item) {
+                const title = calendarDetail.value.title || '';
+                const parts = title.split(': ');
+                const cropItem = parts[0] || '';
+                const workName = parts[1] || '';
+                logForm.value = {
+                    log_date: calendarDetail.value.date,
+                    start_time: '', end_time: '', break_minutes: 0,
+                    worker_name: '', worker_name_other: '',
+                    crop_name: cropItem,
+                    variety_name: item.variety || '',
+                    work_description: workName,
+                    memo: `圃場: ${item.field}`,
+                    task_ref: item.taskRef || '',
+                    _taskLabel: `${workName} (${item.field})`
+                };
+                formImageUrls.value = [];
+                calendarDetail.value.show = false;
+                logDialog.value = true;
+            }
+
+            // ── Save / Delete Log (via AgriApi) ──
+            async function saveLog() {
+                const workerName = logForm.value.worker_name === 'その他'
+                    ? logForm.value.worker_name_other : logForm.value.worker_name;
+                if (!logForm.value.log_date || !workerName) {
+                    snackbar.value = { show: true, color: 'warning', text: '日付と名前は必須です' };
+                    return;
+                }
+                saving.value = true;
+                try {
+                    const payload = { ...logForm.value, worker_name: workerName };
+                    delete payload.worker_name_other;
+                    delete payload._taskLabel;
+                    payload.image_urls = JSON.stringify(formImageUrls.value);
+                    const data = await AgriApi.saveWorkLog(payload);
+                    if (data.success) {
+                        snackbar.value = { show: true, color: 'success', text: '記録を保存しました' };
+                        logDialog.value = false;
+                        logs.value = await AgriApi.fetchTable('work_logs');
+                    }
+                } catch (e) {
+                    snackbar.value = { show: true, color: 'error', text: '保存失敗' };
+                } finally {
+                    saving.value = false;
+                }
+            }
+
+            function confirmDelete(log) {
+                deleteTarget.value = log;
+                deleteDialog.value = true;
+            }
+
+            async function deleteLog() {
+                if (!deleteTarget.value) return;
+                try {
+                    await AgriApi.deleteWorkLog(deleteTarget.value.id);
+                    snackbar.value = { show: true, color: 'success', text: '削除しました' };
+                    deleteDialog.value = false;
+                    logs.value = await AgriApi.fetchTable('work_logs');
+                } catch (e) {
+                    snackbar.value = { show: true, color: 'error', text: '削除失敗' };
+                }
+            }
+
+
+            onMounted(async () => {
+                await AgriApi.runMigrate();
+                await loadAll();
+            });
+
+            // Render calendar when tab switches to calendar
+            watch(activeTab, (val) => {
+                if (val === 'calendar') {
+                    Vue.nextTick(() => { setTimeout(renderCalendar, 100); });
+                }
+            });
+
+            return {
+                activeTab, loading, saving, uploading, logs,
+                logDialog, deleteDialog, snackbar,
+                logForm, formImageUrls, workerSelectItems, timeSlots, breakSlots,
+                // Task list
+                taskSubTab, taskHeaders, doneTaskHeaders,
+                pendingTasks, doneTasks, mobileTaskLimit,
+                taskFilterCrop, taskFilterPeriod,
+                taskCropOptions, getDateColor, openLogFromTask, toggleTaskStatus,
+                // Log list
+                logHeaders, filteredLogs,
+                filterDate, filterWorker, filterCrop,
+                workerFilterOptions, cropFilterOptions,
+                masterCropOptions, masterVarietyOptions, masterWorkOptions,
+                // Actions
+                loadAll, openNewLogDialog, saveLog, confirmDelete, deleteLog,
+                handleFileSelect, removeFormImage, calcWorkHours, parseImages,
+                imagePreviewDialog, previewImage,
+                // Calendar
+                calendarEl, calendarDetail, mapModal, openMapModal,
+                taskStatusMap, completeCalendarTask, logFromCalendarTask,
+                // Navigation
+                drawer
+            };
+        }
+    }).use(Vuetify.createVuetify()).mount('#app');
     </script>
 </body>
-
 </html>

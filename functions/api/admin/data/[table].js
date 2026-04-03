@@ -11,7 +11,8 @@ export async function onRequest(context) {
         'field_designs',
         'fields',
         'process_master',
-        'tasks'
+        'tasks',
+        'work_logs'
     ];
 
     if (!ALLOWED_TABLES.includes(table)) {
@@ -45,35 +46,27 @@ export async function onRequest(context) {
                 body.auto_name = parts.join('_');
             }
 
-            // Generate UUID if ID is missing ONLY for tables with TEXT PRIMARY KEY
-            const uuidTables = ['varieties_master', 'season_plans'];
-            let generatedId = null;
-            if (!body.id && uuidTables.includes(table)) {
+            // Tables with TEXT PRIMARY KEY need a UUID; tables with INTEGER PRIMARY KEY AUTOINCREMENT do not
+            const textPkTables = ['varieties_master', 'season_plans'];
+            if (!body.id && textPkTables.includes(table)) {
                 body.id = crypto.randomUUID();
-                generatedId = body.id;
+            }
+            // For AUTOINCREMENT tables, remove id if it's falsy so SQLite auto-generates it
+            if (!textPkTables.includes(table) && !body.id) {
+                delete body.id;
             }
 
             const keys = Object.keys(body);
             const values = Object.values(body);
             const placeholders = keys.map(() => '?').join(', ');
 
-            let result;
-            const queryStr = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) RETURNING id`;
-            try {
-                result = await env.DB.prepare(queryStr).bind(...values).first();
-            } catch (err) {
-                return Response.json({ 
-                    error: err.message, 
-                    debug: { queryStr, values, bodyKeys: keys } 
-                }, { status: 500 });
-            }
+            const result = await env.DB.prepare(
+                `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`
+            ).bind(...values).run();
 
-            let finalId = generatedId;
-            if (!finalId && result && result.id) {
-                finalId = result.id;
-            }
-
-            return Response.json({ success: true, result, insertedId: finalId });
+            // Return the inserted ID: for TEXT PK tables it's the UUID, for INTEGER PK tables it's lastInsertRowid
+            const insertedId = body.id || (result.meta && result.meta.last_row_id) || null;
+            return Response.json({ success: true, result, insertedId });
         }
 
         if (request.method === 'PUT') {

@@ -16,7 +16,6 @@
     <!-- Leaflet CSS & Draw CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
-    <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.css" />
 
     <style>
         body {
@@ -156,6 +155,16 @@
                         </v-card>
 
                         <div v-else>
+                            <!-- Pending New Field Save Banner -->
+                            <v-alert v-if="pendingNewField" type="warning" variant="tonal" class="mb-4" icon="mdi-content-save-alert">
+                                <div class="font-weight-bold mb-1">新規圃場が未保存です</div>
+                                <div class="text-caption">名称と分類を確認し、下のボタンで保存してください。</div>
+                            </v-alert>
+                            <v-btn v-if="pendingNewField" block color="success" size="large" variant="flat"
+                                prepend-icon="mdi-content-save" class="mb-4" :loading="isSaving"
+                                @click="saveNewFieldAction">
+                                この圃場を保存する
+                            </v-btn>
                             <v-card elevation="0" class="mb-4 bg-transparent">
                                 <v-text-field v-model="fieldProps.name" label="農地・施設名称" variant="outlined"
                                     density="compact" hide-details class="mb-2 bg-white"></v-text-field>
@@ -278,24 +287,14 @@
                             <!-- Action Zone -->
                             <v-card elevation="0" class="mt-4 bg-transparent text-center border-t pt-4">
                                 <v-row dense>
-                                    <!-- NEW FIELD: Explicit Save Button -->
-                                    <v-col cols="12" v-if="isNewField">
-                                        <v-btn block color="primary" variant="flat" size="large"
-                                            prepend-icon="mdi-content-save"
-                                            :loading="isSaving"
-                                            @click="saveField">
-                                            この新規圃場を保存する
-                                        </v-btn>
-                                        <div class="text-caption text-grey mt-1">※ 保存ボタンを押すまでデータベースには登録されません</div>
-                                    </v-col>
-                                    <v-col cols="12" v-if="!isNewField">
+                                    <v-col cols="12">
                                         <v-btn block :color="isEditingShape ? 'amber-darken-2' : 'info'" variant="flat"
                                             :prepend-icon="isEditingShape ? 'mdi-check' : 'mdi-vector-polyline-edit'"
                                             @click="toggleEditShape">
                                             {{ isEditingShape ? '形状変更を確定 (自動保存)' : '圃場の形状を編集' }}
                                         </v-btn>
                                     </v-col>
-                                    <v-col cols="12" class="mt-2" v-if="!isNewField">
+                                    <v-col cols="12" class="mt-2">
                                         <v-btn block color="error" variant="tonal" prepend-icon="mdi-delete"
                                             @click="deleteShape">
                                             この圃場を削除
@@ -342,10 +341,9 @@
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-    <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.min.js"></script>
 
     <script>
-        const { createApp, ref, computed, onMounted, nextTick, watch } = Vue;
+        const { createApp, ref, onMounted, nextTick, watch } = Vue;
         const vuetify = Vuetify.createVuetify();
 
         createApp({
@@ -380,6 +378,7 @@
 
                 const unsavedChanges = ref(false);
                 const snackbar = ref({ show: false, color: '', text: '' });
+                const pendingNewField = ref(false);
 
                 // Create Flow
                 const createDialog = ref(false);
@@ -389,11 +388,6 @@
 
                 // Props for DB 
                 const fieldProps = ref({ id: null, name: '', folder: '' });
-
-                // Computed: is the currently selected field a NEW (unsaved) field?
-                const isNewField = computed(() => {
-                    return fieldProps.value.id && fieldProps.value.id.toString().startsWith('NEW_');
-                });
 
                 // Agricultural Design Parameters
                 const design = ref({
@@ -448,70 +442,67 @@
                     highlightLayerGroup.value = L.featureGroup().addTo(lmap);
                     heatmapLayerGroup.value = L.featureGroup().addTo(lmap);
 
+                    // Translate Draw Tooltips to Japanese
+                    L.drawLocal.draw.handlers.polygon.tooltip.start = '最初の点をクリックして描画を開始';
+                    L.drawLocal.draw.handlers.polygon.tooltip.cont = '次の点をクリックして描画を継続';
+                    L.drawLocal.draw.handlers.polygon.tooltip.end = '最初の点を再度クリックして図形を閉じる';
+
+                    L.drawLocal.draw.toolbar.actions.title = '描画をキャンセル';
+                    L.drawLocal.draw.toolbar.actions.text = 'キャンセル';
+                    L.drawLocal.draw.toolbar.finish.title = '描画を完了';
+                    L.drawLocal.draw.toolbar.finish.text = '完了';
+                    L.drawLocal.draw.toolbar.undo.title = '最後に描画したポイントを削除';
+                    L.drawLocal.draw.toolbar.undo.text = '最後のポイントを削除';
+
+                    // Initialize the programmable drawer
                     if (!isReadonly.value) {
-                        lmapInstance.pm.setLang('ja');
-                        // Add Geoman global controls (we only use it programmatically but it sets up bindings)
-                        lmapInstance.pm.addControls({
-                            position: 'topleft',
-                            drawPolygon: false,
-                            drawMarker: false,
-                            drawCircleMarker: false,
-                            drawPolyline: false,
-                            drawRectangle: false,
-                            drawCircle: false,
-                            editMode: false,
-                            dragMode: false,
-                            cutPolygon: false,
-                            removalMode: false,
-                            drawText: false,
-                        });
-                        
-                        lmapInstance.pm.setGlobalOptions({ 
-                            pathOptions: { color: '#4caf50' } 
-                        });
-
-                        // Draw Events (Geoman)
-                        lmapInstance.on('pm:create', async (e) => {
-                            const layer = e.layer;
-                            // Prefigure feature properties securely
-                            const newId = 'NEW_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
-                            layer.feature = {
-                                type: 'Feature',
-                                properties: {
-                                    id: newId,
-                                    isNew: true,
-                                    name: newFieldForm.value.name,
-                                    folder_name: newFieldForm.value.folder
-                                }
-                            };
-                            
-                            // Listen to click so we can select it later
-                            layer.on('click', () => { handleLayerClick(layer); });
-                            
-                            // Add to our main group so we can manage it
-                            fieldLayerGroup.value.addLayer(layer);
-
-                            // Geoman specific: update geometry when edited
-                            layer.on('pm:edit', () => {
-                                if (layer.feature && layer.feature.properties.id === selectedFieldId.value) {
-                                    handleLayerClick(layer);
-                                }
-                            });
-
-                            // Geoman specific: update geometry when dragged
-                            layer.on('pm:dragend', () => {
-                                if (layer.feature && layer.feature.properties.id === selectedFieldId.value) {
-                                    handleLayerClick(layer);
-                                }
-                            });
-
-                            // Select it immediately and let it compute bounds/areas
-                            await handleLayerClick(layer);
-
-                            // Do NOT auto-save here. The user must explicitly click the save button.
-                            snackbar.value = { show: true, color: 'info', text: '図形を描画しました。右側パネルの「この新規圃場を保存する」ボタンで保存してください。' };
+                        polygonDrawer = new L.Draw.Polygon(lmapInstance, {
+                            allowIntersection: false,
+                            drawError: { color: '#e1e100', message: '<strong>交差しています!</strong>' },
+                            shapeOptions: { color: '#4caf50' }
                         });
                     }
+
+                    // Draw Events
+                    map.value.on(L.Draw.Event.CREATED, (e) => {
+                        const layer = e.layer;
+                        // Give it the preconfigured name and folder from our UI dialog
+                        const newId = 'NEW_' + Date.now();
+                        layer.feature = {
+                            properties: {
+                                id: newId,
+                                isNew: true,
+                                name: newFieldForm.value.name,
+                                folder_name: newFieldForm.value.folder
+                            }
+                        };
+                        layer.on('click', () => { handleLayerClick(layer); });
+                        fieldLayerGroup.value.addLayer(layer);
+
+                        // Select it immediately, then mark as pending
+                        handleLayerClick(layer);
+                        pendingNewField.value = true;
+
+                        snackbar.value = { show: true, color: 'info', text: '右パネルの「この圃場を保存する」ボタンで保存してください' };
+                    });
+
+                    map.value.on(L.Draw.Event.EDITED, (e) => {
+                        e.layers.eachLayer(layer => {
+                            if (layer.feature && layer.feature.properties.id === selectedFieldId.value) {
+                                // If the currently selected layer was edited, recalc
+                                handleLayerClick(layer);
+                            }
+                        });
+                    });
+
+                    map.value.on(L.Draw.Event.DELETED, (e) => {
+                        // Check if deleted layer is the selected one
+                        e.layers.eachLayer(layer => {
+                            if (layer.feature && layer.feature.properties.id === selectedFieldId.value) {
+                                selectedFieldId.value = null;
+                            }
+                        });
+                    });
 
                     map.value.on('zoomend', () => {
                         updateZoomClass();
@@ -750,6 +741,12 @@
                 const handleLayerClick = async (layer) => {
                     if (isSaving.value) return;
 
+                    // If a new field is pending save, block switching to another polygon
+                    if (pendingNewField.value && layer.feature && layer.feature.properties.id !== selectedFieldId.value) {
+                        snackbar.value = { show: true, color: 'warning', text: '新規圃場を先に保存してください' };
+                        return;
+                    }
+
                     // Cleanup previous edit state
                     if (isEditingShape.value && selectedLayer.value) {
                         selectedLayer.value.editing.disable();
@@ -828,25 +825,10 @@
 
                 let autoSaveTimeout = null;
                 const handleAutoSave = () => {
+                    // Do not auto-save while a new field is pending explicit save
+                    if (pendingNewField.value) return;
                     // Do not auto-save if a field hasn't been properly loaded
                     if (!selectedFieldId.value && (!fieldProps.value.id || !fieldProps.value.id.toString().startsWith('NEW_'))) return;
-
-                    // GUARD: Do NOT auto-save new (unsaved) fields. User must click the explicit save button.
-                    if (fieldProps.value.id && fieldProps.value.id.toString().startsWith('NEW_')) {
-                        calculateMetrics();
-                        unsavedChanges.value = true;
-                        // Update polygon color immediately if folder changed
-                        if (selectedLayer.value && selectedLayer.value.setStyle) {
-                            let color = '#4caf50';
-                            if (fieldProps.value.folder === '駐車場') color = '#9e9e9e';
-                            if (fieldProps.value.folder === 'その他施設') color = '#ff9800';
-                            if (fieldProps.value.folder === '草刈り対応') color = '#8bc34a';
-                            if (fieldProps.value.folder === '農業用ハウス') color = '#03a9f4';
-                            selectedLayer.value.setStyle({ color: color });
-                            selectedLayer.value.feature.properties.folder_name = fieldProps.value.folder;
-                        }
-                        return; // Block auto-save API call for new fields
-                    }
 
                     calculateMetrics();
                     unsavedChanges.value = true;
@@ -1007,14 +989,8 @@
                     try {
                         // 1. Convert GeoJSON back to custom string format for DB
                         // Format: "138.21,36.73,0 138.22,36.73,0 ..."
-                        let coordsString;
-                        try {
-                            const ring = currentPolygonJson.value.geometry.coordinates[0];
-                            coordsString = ring.map(c => `${c[0]},${c[1]},0`).join(' ');
-                        } catch(e) {
-                            console.error("Coordinate parse error:", e);
-                            throw new Error("図形の座標パースに失敗しました");
-                        }
+                        const ring = currentPolygonJson.value.geometry.coordinates[0];
+                        const coordsString = ring.map(c => `${c[0]},${c[1]},0`).join(' ');
 
                         const isNewField = !fieldProps.value.id || fieldProps.value.id.toString().startsWith('NEW_');
 
@@ -1041,15 +1017,25 @@
                             body: JSON.stringify(corePayload)
                         });
                         const coreData = await coreRes.json();
-                        
-                        if (!coreData.success) {
-                            throw new Error(coreData.error || "データ保存APIがエラーを返しました");
-                        }
+                        console.log('saveField API response:', JSON.stringify(coreData));
 
                         // Assign real DB ID if newly created
-                        if (isNewField && coreData.insertedId !== undefined) {
-                            fieldProps.value.id = coreData.insertedId;
-                            selectedFieldId.value = fieldProps.value.id;
+                        if (isNewField && coreData.success) {
+                            const newDbId = coreData.insertedId 
+                                || (coreData.result && (coreData.result.lastInsertRowid || coreData.result.last_row_id))
+                                || (coreData.result && coreData.result.meta && (coreData.result.meta.last_row_id || coreData.result.meta.lastInsertRowid));
+                            if (newDbId) {
+                                fieldProps.value.id = newDbId;
+                                selectedFieldId.value = newDbId;
+                                console.log('New field saved with ID:', newDbId);
+                            } else {
+                                console.error('No ID returned from API for new field. Full response:', JSON.stringify(coreData));
+                            }
+                        } else if (isNewField && !coreData.success) {
+                            console.error('Save failed:', JSON.stringify(coreData));
+                            snackbar.value = { show: true, color: 'error', text: '保存に失敗しました: ' + (coreData.error || '不明なエラー') };
+                            isSaving.value = false;
+                            return;
                         }
 
                         // 2. Save Design Logic Params for 耕作地
@@ -1092,8 +1078,8 @@
 
                         // Background fetch to keep lists in sync and redraw groups
                         const [fRes, dRes] = await Promise.all([
-                            fetch(`/api/admin/data/fields?t=${Date.now()}`),
-                            fetch(`/api/admin/data/field_designs?t=${Date.now()}`)
+                            fetch('/api/admin/data/fields'),
+                            fetch('/api/admin/data/field_designs')
                         ]);
                         const fData = await fRes.json();
                         const dData = await dRes.json();
@@ -1248,12 +1234,8 @@
                         return alert("名称を入力してください");
                     }
                     createDialog.value = false;
-                    if (map.value) {
-                        map.value.pm.enableDraw('Polygon', {
-                            snappable: true,
-                            snapDistance: 20,
-                            allowSelfIntersection: false
-                        });
+                    if (polygonDrawer) {
+                        polygonDrawer.enable();
                         snackbar.value = { show: true, color: 'info', text: 'マップ上で図形を描画してください' };
                     }
                 };
@@ -1261,7 +1243,7 @@
                 const toggleEditShape = () => {
                     if (!selectedLayer.value) return;
                     if (isEditingShape.value) {
-                        selectedLayer.value.pm.disable();
+                        selectedLayer.value.editing.disable();
                         isEditingShape.value = false;
 
                         // Fake a re-click to fetch fresh geometry
@@ -1270,9 +1252,7 @@
                         handleAutoSave();
                         snackbar.value = { show: true, color: 'success', text: '形状を確定し、保存しました' };
                     } else {
-                        selectedLayer.value.pm.enable({
-                            allowSelfIntersection: false,
-                        });
+                        selectedLayer.value.editing.enable();
                         isEditingShape.value = true;
                     }
                 };
@@ -1320,13 +1300,21 @@
                     initMap();
                 });
 
+                const saveNewFieldAction = async () => {
+                    await saveField();
+                    if (!isSaving.value) {
+                        pendingNewField.value = false;
+                    }
+                };
+
                 return {
                     fieldProps, design, metrics, selectedFieldId, currentLineStringJson,
                     calculateMetrics, saveField, isSaving, unsavedChanges, snackbar,
                     analyzeElevation, isAnalyzingElevation, calculatedRidges,
                     createDialog, newFieldForm, startCreateFlow, confirmCreateStart,
                     toggleEditShape, isEditingShape, deleteShape, handleAutoSave,
-                    visibleLayers, renderFieldsOnMap, isReadonly, isNewField
+                    visibleLayers, renderFieldsOnMap, isReadonly,
+                    pendingNewField, saveNewFieldAction
                 }
             }
         }).use(vuetify).mount('#app');
